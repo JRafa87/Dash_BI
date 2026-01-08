@@ -24,16 +24,18 @@ def get_supabase() -> Client:
 supabase = get_supabase()
 
 # ============================================================
-# 1. GESTIÓN DE SESIÓN
+# 1. GESTIÓN DE SESIÓN (LÓGICA VOLÁTIL)
 # ============================================================
 
 def _setup_session(auth_user):
     metadata = getattr(auth_user, 'user_metadata', {})
     role = metadata.get("role", "analista").lower()
     
+    # CAPTURA DE HORA DEL SISTEMA (PERÚ)
     if "session_time_pe" not in st.session_state:
         st.session_state["session_time_pe"] = datetime.datetime.now(TIMEZONE_PERU).strftime("%Y-%m-%d %H:%M hrs (PE)")
     
+    # Definir página inicial según cargo
     if "current_page" not in st.session_state:
         st.session_state["current_page"] = "Historial de Encuesta" if role == "auditor" else "Dashboard"
 
@@ -64,7 +66,7 @@ def handle_logout():
     st.rerun()
 
 # ============================================================
-# 2. INTERFAZ DE ACCESO (REGISTRO Y RECUPERACIÓN ORIGINAL)
+# 2. INTERFAZ DE ACCESO Y RECUPERACIÓN
 # ============================================================
 
 def render_password_reset_form():
@@ -95,10 +97,8 @@ def render_password_reset_form():
                             "type": "recovery"
                         })
                         supabase.auth.update_user({"password": new_pass})
-                        st.success("Contraseña cambiada con éxito.")
-                        st.session_state.recovery_step = 1
-                        # REGLA PERSONALIZADA: Redirigir a login
-                        st.session_state.clear()
+                        st.success("✅ Contraseña actualizada.")
+                        st.session_state.clear() # Redirigir a login
                         time.sleep(2)
                         st.rerun()
                     except:
@@ -112,7 +112,7 @@ def render_password_reset_form():
                 if new_p == conf_p and len(new_p) >= 8:
                     try:
                         supabase.auth.update_user({"password": new_p})
-                        st.success("Contraseña actualizada exitosamente.")
+                        st.success("✅ Contraseña actualizada.")
                         st.session_state.clear()
                         time.sleep(2)
                         st.rerun()
@@ -150,26 +150,38 @@ def render_auth_page():
             render_password_reset_form()
 
 # ============================================================
-# 3. SIDEBAR Y CONTENIDO
+# 3. SIDEBAR (NOMBRE, CARGO, CORREO Y SESIÓN)
 # ============================================================
 
 def render_sidebar():
     role = st.session_state.get("user_role", "analista")
+    email = st.session_state.get("user_email", "")
+    session_time = st.session_state.get("session_time_pe", "")
     current_page = st.session_state.get("current_page")
+
     with st.sidebar:
+        # Bloque de Usuario
         st.title(f"👋 {st.session_state.get('full_name', 'User').split(' ')[0]}")
+        st.write(f"📧 **{email}**")
         st.info(f"Cargo: **{role.upper()}**")
+        st.caption(f"🕒 Sesión: {session_time}")
+        
         st.markdown("---")
+        
+        # Menú dinámico
         menu = []
         if role == "admin": menu = ["Dashboard", "Historial de Encuesta"]
         elif role == "analista": menu = ["Dashboard"]
         elif role == "auditor": menu = ["Historial de Encuesta"]
+        
         for p in menu:
             if st.button(p, use_container_width=True, type="primary" if current_page == p else "secondary"):
                 st.session_state.current_page = p
                 st.rerun()
+        
         st.markdown("---")
-        if st.button("Cerrar Sesión", use_container_width=True): handle_logout()
+        if st.button("Cerrar Sesión", use_container_width=True):
+            handle_logout()
 
 # ============================================================
 # 4. EJECUCIÓN
@@ -179,6 +191,7 @@ if st.session_state.get("authenticated"):
     if "just_logged_in" in st.session_state: del st.session_state["just_logged_in"]
     render_sidebar()
     current = st.session_state.get("current_page")
+    
     if current == "Dashboard": render_rotacion_dashboard()
     elif current == "Historial de Encuesta": historial_encuestas_module()
 else:
