@@ -2,31 +2,32 @@ import streamlit as st
 from supabase import create_client, Client
 
 def render_formulario_encuesta():
-    # Estilo CSS personalizado para mejorar la apariencia de los radio buttons y el contenedor
+    # Estilo CSS corregido: Ahora solo afecta al botón DENTRO del formulario de encuesta
     st.markdown("""
         <style>
-        /* Estilo para que los radio buttons se vean horizontales y centrados */
+        /* Usamos el ID del formulario para que el estilo no se escape al sidebar */
+        div[data-testid="stForm"] div.stButton > button {
+            background-color: #2e7d32 !important;
+            color: white !important;
+            height: 3em;
+            width: 100%;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        /* Estilo para los radio buttons horizontales */
         .stRadio [role="radiogroup"] {
             flex-direction: row;
             justify-content: flex-start;
             gap: 10px;
         }
-        /* Contenedor con borde suave para cada pregunta */
+        
         div.stRadio {
             background-color: #f9f9f9;
             padding: 15px;
             border-radius: 10px;
             border: 1px solid #e6e6e6;
             margin-bottom: 10px;
-        }
-        /* Estilo del botón de enviar */
-        div.stButton > button:first-child {
-            background-color: #2e7d32;
-            color: white;
-            height: 3em;
-            width: 100%;
-            border-radius: 10px;
-            font-weight: bold;
         }
         </style>
     """, unsafe_allow_html=True)
