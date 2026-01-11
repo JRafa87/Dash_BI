@@ -16,6 +16,6 @@ xlsxwriter
 shap
 pytz
 dnspython
-streamlit-gsheets
+st-gsheets-connection
 google-generativeai
 pytz
