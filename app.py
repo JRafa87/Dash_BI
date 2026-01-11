@@ -4,17 +4,16 @@ import datetime
 import pytz
 import time
 
-
-# Importaciones de tus módulos locales
+# --- IMPORTACIONES DE MÓDULOS LOCALES ---
 from dashboard_rotacion import render_rotacion_dashboard
 from encuestas_historial import historial_encuestas_module
-from usabilidad_module import render_modulo_usabilidad # <--- Nuevo Módulo
+from usabilidad_module import render_modulo_usabilidad 
+from encuesta_interna import render_formulario_encuesta  # <--- Importación del nuevo formulario
 
 # ============================================================
 # 0. CONFIGURACIÓN
 # ============================================================
 TIMEZONE_PERU = pytz.timezone("America/Lima")
-
 st.set_page_config(page_title="App Deserción Laboral", layout="wide")
 
 @st.cache_resource
@@ -36,7 +35,6 @@ def _setup_session(auth_user):
     if "session_time_pe" not in st.session_state:
         st.session_state["session_time_pe"] = datetime.datetime.now(TIMEZONE_PERU).strftime("%Y-%m-%d %H:%M hrs (PE)")
     
-    # Definición de página inicial por cargo
     if "current_page" not in st.session_state:
         if role == "auditor":
             st.session_state["current_page"] = "Historial de Encuesta"
@@ -70,12 +68,11 @@ def handle_logout():
     st.rerun()
 
 # ============================================================
-# 2. INTERFAZ DE ACCESO (RECUPERACIÓN LIMPITADA)
+# 2. INTERFAZ DE ACCESO
 # ============================================================
 
 def render_password_reset_form():
     st.subheader("🔄 Recuperar Contraseña")
-    # Se eliminó la opción "Cambio Directo" por solicitud
     if "recovery_step" not in st.session_state:
         st.session_state.recovery_step = 1
 
@@ -103,7 +100,7 @@ def render_password_reset_form():
                     supabase.auth.update_user({"password": new_pass})
                     st.success("✅ Contraseña actualizada.")
                     time.sleep(2)
-                    st.session_state.clear() # Redirección automática al Login
+                    st.session_state.clear() 
                     st.rerun()
                 except: st.error("Código inválido o expirado.")
 
@@ -150,14 +147,14 @@ def render_sidebar():
         st.caption(f"🕒 {st.session_state.get('session_time_pe')}")
         st.markdown("---")
         
-        # Lógica de visibilidad por rol
+        # MENÚ DINÁMICO: Todos tienen acceso a "Calificar Dashboard"
         menu = []
         if role == "admin":
-            menu = ["Dashboard", "Historial de Encuesta", "Módulo de Usabilidad"]
+            menu = ["Dashboard", "Historial de Encuesta", "Módulo de Usabilidad", "Calificar Dashboard"]
         elif role == "analista":
-            menu = ["Dashboard", "Historial de Encuesta"]
+            menu = ["Dashboard", "Historial de Encuesta", "Calificar Dashboard"]
         elif role == "auditor":
-            menu = ["Historial de Encuesta"]
+            menu = ["Historial de Encuesta", "Calificar Dashboard"]
         
         for p in menu:
             if st.button(p, use_container_width=True, type="primary" if current_page == p else "secondary"):
@@ -177,13 +174,14 @@ if st.session_state.get("authenticated"):
     render_sidebar()
     current = st.session_state.get("current_page")
     
-    # Renderizado condicional
     if current == "Dashboard": 
         render_rotacion_dashboard()
     elif current == "Historial de Encuesta": 
         historial_encuestas_module()
     elif current == "Módulo de Usabilidad" and st.session_state.user_role == "admin":
         render_modulo_usabilidad()
+    elif current == "Calificar Dashboard":
+        render_formulario_encuesta() # <--- Llamada a la encuesta
 else:
     try:
         session = supabase.auth.get_session()
