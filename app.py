@@ -178,10 +178,10 @@ if st.session_state.get("authenticated"):
         render_rotacion_dashboard()
     elif current == "Historial de Encuesta": 
         historial_encuestas_module()
-    elif current == "Módulo de Usabilidad" and st.session_state.user_role == "admin":
-        render_modulo_usabilidad()
     elif current == "Calificar Dashboard":
         render_formulario_encuesta() # <--- Llamada a la encuesta
+    elif current == "Módulo de Usabilidad" and st.session_state.user_role == "admin":
+        render_modulo_usabilidad()
 else:
     try:
         session = supabase.auth.get_session()
