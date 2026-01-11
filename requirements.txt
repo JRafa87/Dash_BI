@@ -16,3 +16,6 @@ xlsxwriter
 shap
 pytz
 dnspython
+streamlit-gsheets
+google-generativeai
+pytz
