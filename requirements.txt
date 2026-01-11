@@ -18,4 +18,3 @@ pytz
 dnspython
 st-gsheets-connection
 google-generativeai
-pytz

@@ -111,7 +111,7 @@ def render_auth_page():
     if st.session_state.get("just_logged_in"): return
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
-        st.title("Sistema BI - Deserción")
+        st.title("Acceso al Sistema")
         tabs = st.tabs(["🔑 Login", "📝 Registro", "🔄 Recuperar"])
         with tabs[0]:
             if st.session_state.get("login_error"): st.error(st.session_state.login_error)
