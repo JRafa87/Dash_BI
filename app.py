@@ -3,6 +3,7 @@ from supabase import create_client, Client
 import datetime
 import pytz
 import time
+from st_gsheets_connection import GSheetsConnection
 
 # Importaciones de tus módulos locales
 from dashboard_rotacion import render_rotacion_dashboard
