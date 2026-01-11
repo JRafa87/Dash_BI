@@ -53,8 +53,8 @@ def render_formulario_encuesta():
     """, unsafe_allow_html=True)
 
     # --- TÍTULO E INTRODUCCIÓN ---
-    st.title("📝 Evaluación de Usabilidad (SUS)")
-    st.markdown("Por favor, califica tu experiencia con el Dashboard. **Todos los campos de texto son opcionales.**")
+    st.title("📝 Evaluación de Usabilidad")
+    st.markdown("Por favor, califica tu experiencia con el Dashboard.")
 
     opciones = {
         "Muy en desacuerdo": 1,
