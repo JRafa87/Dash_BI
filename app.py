@@ -150,7 +150,7 @@ def render_sidebar():
         # MENÚ DINÁMICO: Todos tienen acceso a "Calificar Dashboard"
         menu = []
         if role == "admin":
-            menu = ["Dashboard", "Historial de Encuesta", "Módulo de Usabilidad", "Calificar Dashboard"]
+            menu = ["Dashboard", "Historial de Encuesta", "Calificar Dashboard", "Módulo de Usabilidad"]
         elif role == "analista":
             menu = ["Dashboard", "Historial de Encuesta", "Calificar Dashboard"]
         elif role == "auditor":
