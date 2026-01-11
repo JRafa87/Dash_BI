@@ -7,7 +7,7 @@ import time
 # Importaciones de tus módulos locales
 from dashboard_rotacion import render_rotacion_dashboard
 from encuestas_historial import historial_encuestas_module
-from modulo_usabilidad import render_modulo_usabilidad # <--- Nuevo Módulo
+from usabilidad_module import render_modulo_usabilidad # <--- Nuevo Módulo
 
 # ============================================================
 # 0. CONFIGURACIÓN
