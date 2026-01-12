@@ -131,19 +131,47 @@ def render_auth_page():
             
         with tabs[1]:
             st.subheader("Nuevo Usuario")
-            reg_email = st.text_input("Correo institucional", key="reg_email")
+            reg_email = st.text_input("Correo institucional", key="reg_email").strip().lower()
+            
+            # --- VALIDACIÓN DE CORREO EXISTENTE ---
+            email_existe = False
+            if reg_email:
+                # Consultamos en la tabla 'profiles' o donde guardes los datos del usuario
+                # Nota: Debes tener una tabla vinculada a Auth para que esto funcione
+                try:
+                    check_user = supabase.table("profiles").select("email").eq("email", reg_email).execute()
+                    if len(check_user.data) > 0:
+                        email_existe = True
+                        st.error(f"⚠️ El correo {reg_email} ya se encuentra registrado.")
+                except Exception:
+                    # Si la tabla profiles no existe aún o no tienes permisos de lectura
+                    pass
+
             reg_name = st.text_input("Nombre completo")
             reg_role = st.selectbox("Cargo / Puesto", ["analista", "auditor", "admin"])
             reg_pass = st.text_input("Contraseña", type="password", key="reg_pass_key")
-            if st.button("Registrarse", use_container_width=True):
-                if len(reg_pass) >= 8 and reg_name and reg_email:
-                    try:
-                        supabase.auth.sign_up({
-                            "email": reg_email, "password": reg_pass,
-                            "options": {"data": {"full_name": reg_name, "role": reg_role}}
-                        })
+            
+            # El botón se bloquea si el correo existe
+            btn_bloqueado = email_existe or not reg_email or not reg_name or len(reg_pass) < 8
+            
+            if st.button("Registrarse", use_container_width=True, disabled=btn_bloqueado):
+                try:
+                    # Intentar el registro en Supabase Auth
+                    response = supabase.auth.sign_up({
+                        "email": reg_email, 
+                        "password": reg_pass,
+                        "options": {"data": {"full_name": reg_name, "role": reg_role}}
+                    })
+                    
+                    # Supabase Auth a veces no lanza error si el correo existe (por seguridad)
+                    # pero devuelve una identidad vacía o un objeto específico
+                    if response.user:
                         st.success("✅ Registro enviado. Revisa tu correo para confirmar.")
-                    except Exception as e: st.error(f"Error: {e}")
+                    else:
+                        st.info("Si el correo es válido, recibirás un mensaje de confirmación.")
+                        
+                except Exception as e:
+                    st.error(f"Error al registrar: {e}")
                 else:
                     st.warning("Completa todos los campos (Pass mín. 8 caracteres).")
                     
