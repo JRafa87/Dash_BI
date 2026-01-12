@@ -40,42 +40,40 @@ def analizar_sentimiento_ia(texto):
     else: return "Neutral"
 
 def generar_pdf_reporte(score_promedio, total, sentimiento_dominante):
-    """Genera PDF con espaciado controlado para evitar encimamientos"""
     pdf = FPDF()
     pdf.add_page()
     
-    # Título
+    # Título Centrado
     pdf.set_font("Helvetica", 'B', 16)
     pdf.cell(0, 15, "REPORTE ESTRATEGICO DE USABILIDAD E IA", ln=True, align='C')
-    pdf.ln(5)
+    pdf.ln(10) # Salto de línea controlado para evitar encimamiento
     
-    # Metadatos
-    pdf.set_font("Helvetica", '', 11)
+    # Información General
+    pdf.set_font("Helvetica", '', 12)
     fecha = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     pdf.cell(0, 10, f"Fecha de emision: {fecha}", ln=True)
-    pdf.cell(0, 10, f"ID de Consulta: {datetime.datetime.now().timestamp()}", ln=True)
-    pdf.ln(10)
+    pdf.ln(5)
     
-    # Sección SUS
+    # Sección 1: SUS (Con fondo gris suave para separar)
     pdf.set_font("Helvetica", 'B', 14)
-    pdf.set_fill_color(240, 240, 240)
+    pdf.set_fill_color(245, 245, 245)
     pdf.cell(0, 10, "1. Metricas del Sistema (SUS Score)", ln=True, fill=True)
-    pdf.ln(3)
     pdf.set_font("Helvetica", '', 12)
-    pdf.multi_cell(0, 8, f"- Puntaje SUS Promedio: {score_promedio:.2f} / 100\n"
-                         f"- Muestra total: {total} usuarios evaluados.\n"
-                         f"- Nivel de Usabilidad: {'Excelente' if score_promedio > 80 else 'Aceptable' if score_promedio > 68 else 'Bajo'}")
-    pdf.ln(10)
+    pdf.ln(2)
+    pdf.multi_cell(0, 10, f"Puntaje SUS Promedio: {score_promedio:.2f} / 100\n"
+                          f"Muestra total: {total} usuarios evaluados.")
+    pdf.ln(10) # Espacio entre secciones
     
-    # Sección IA
+    # Sección 2: IA
     pdf.set_font("Helvetica", 'B', 14)
     pdf.cell(0, 10, "2. Analisis de Feedback Cualitativo (IA)", ln=True, fill=True)
-    pdf.ln(3)
     pdf.set_font("Helvetica", '', 12)
-    pdf.multi_cell(0, 8, f"- Sentimiento Predominante: {sentimiento_dominante}\n"
-                         "- Resumen Ejecutivo: El procesamiento automatico detecta que los usuarios "
-                         "valoran la integracion de funciones, recomendando mejorar la ayuda visual y la explicabilidad.")
+    pdf.ln(2)
+    pdf.multi_cell(0, 10, f"Sentimiento Predominante: {sentimiento_dominante}\n"
+                          "Resumen Ejecutivo: El procesamiento automatico detecta que los usuarios "
+                          "valoran la integracion de funciones.")
     
+    # IMPORTANTE: Retornar como bytes para Streamlit
     return pdf.output()
 
 # --- MODULO PRINCIPAL ---
@@ -119,10 +117,18 @@ def render_modulo_usabilidad():
     with st.sidebar:
         st.subheader("📄 Reporte Ejecutivo")
         try:
-            pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom)
+            # Generamos el PDF
+            pdf_output = generar_pdf_reporte(promedio_sus, len(df), sent_predom)
+            
+            # Si pdf_output es un string (dependiendo de la versión), lo convertimos
+            if isinstance(pdf_output, str):
+                pdf_bytes = pdf_output.encode('latin-1')
+            else:
+                pdf_bytes = pdf_output
+
             st.download_button(
                 label="📥 Descargar Reporte PDF",
-                data=bytes(pdf_bytes),
+                data=pdf_bytes,
                 file_name=f"Reporte_Usabilidad_{datetime.date.today()}.pdf",
                 mime="application/pdf",
                 use_container_width=True
