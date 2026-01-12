@@ -54,10 +54,10 @@ def generar_pdf_reporte(score_promedio, total, sentimiento, df, fig_wc):
     plt.hist(df['sus_score'], color='#2e7d32', rwidth=0.9)
     plt.title("Distribucion SUS")
     buf1 = io.BytesIO()
-    plt.savefig(buf1, format='png', bbox_inches='tight')
+    plt.savefig(buf1, format='png')
+    buf1.seek(0) # IMPORTANTE: Rebobinar el buffer
+    pdf.image(buf1, x=15, w=180, type='PNG')
     plt.close()
-    pdf.image(buf1, x=15, w=180)
-    pdf.ln(5)
 
     # --- Gráfica 2: Pie imitando Dona de Plotly ---
     plt.figure(figsize=(5, 3))
@@ -66,19 +66,21 @@ def generar_pdf_reporte(score_promedio, total, sentimiento, df, fig_wc):
     plt.pie(counts, labels=counts.index, autopct='%1.1f%%', 
             colors=[colors.get(x, '#808080') for x in counts.index], wedgeprops={'width':0.4})
     buf2 = io.BytesIO()
-    plt.savefig(buf2, format='png', bbox_inches='tight')
+    plt.savefig(buf2, format='png')
+    buf2.seek(0) # IMPORTANTE: Rebobinar el buffer
+    pdf.image(buf2, x=55, w=100, type='PNG')
     plt.close()
-    pdf.image(buf2, x=55, w=100)
 
     # --- Nube de Conceptos ---
     pdf.add_page()
     pdf.set_font("Helvetica", 'B', 14)
     pdf.cell(0, 10, "Analisis de Conceptos (NLP)", ln=True, align='C')
     buf3 = io.BytesIO()
-    fig_wc.savefig(buf3, format='png', bbox_inches='tight')
-    pdf.image(buf3, x=10, w=190)
+    fig_wc.savefig(buf3, format='png')
+    buf3.seek(0) # IMPORTANTE: Rebobinar el buffer
+    pdf.image(buf3, x=10, w=190, type='PNG')
 
-    return pdf.output(dest='S')
+    return pdf.output()
 
 # --- MODULO PRINCIPAL ---
 
