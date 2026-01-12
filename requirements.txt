@@ -12,3 +12,4 @@ xlsxwriter
 fpdf
 textblob
 wordcloud
+fpdf2
