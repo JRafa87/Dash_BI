@@ -5,13 +5,17 @@ import pytz
 import time
 
 # --- IMPORTACIONES DE MÓDULOS LOCALES ---
-from dashboard_rotacion import render_rotacion_dashboard
-from encuestas_historial import historial_encuestas_module
-from usabilidad_module import render_modulo_usabilidad 
-from encuesta_interna import render_formulario_encuesta  # <--- Importación del nuevo formulario
+# Asegúrate de que estos archivos existan en tu directorio
+try:
+    from dashboard_rotacion import render_rotacion_dashboard
+    from encuestas_historial import historial_encuestas_module
+    from usabilidad_module import render_modulo_usabilidad 
+    from encuesta_interna import render_formulario_encuesta
+except ImportError as e:
+    st.error(f"Error al importar módulos: {e}")
 
 # ============================================================
-# 0. CONFIGURACIÓN
+# 0. CONFIGURACIÓN INICIAL
 # ============================================================
 TIMEZONE_PERU = pytz.timezone("America/Lima")
 st.set_page_config(page_title="App Deserción Laboral", layout="wide")
@@ -25,50 +29,56 @@ def get_supabase() -> Client:
 supabase = get_supabase()
 
 # ============================================================
-# 1. GESTIÓN DE SESIÓN
+# 1. GESTIÓN DE SESIÓN (ESTRICTA)
 # ============================================================
 
 def _setup_session(auth_user):
+    """Establece las variables de sesión solo tras validación exitosa."""
     metadata = getattr(auth_user, 'user_metadata', {})
     role = metadata.get("role", "analista").lower()
     
-    if "session_time_pe" not in st.session_state:
-        st.session_state["session_time_pe"] = datetime.datetime.now(TIMEZONE_PERU).strftime("%Y-%m-%d %H:%M hrs (PE)")
-    
-    if "current_page" not in st.session_state:
-        if role == "auditor":
-            st.session_state["current_page"] = "Historial de Encuesta"
-        else:
-            st.session_state["current_page"] = "Dashboard"
-
     st.session_state.update({
         "authenticated": True,
         "user_id": auth_user.id,
         "user_email": auth_user.email,
         "user_role": role,
-        "full_name": metadata.get("full_name", auth_user.email.split("@")[0])
+        "full_name": metadata.get("full_name", auth_user.email.split("@")[0]),
+        "session_time_pe": datetime.datetime.now(TIMEZONE_PERU).strftime("%Y-%m-%d %H:%M hrs (PE)")
     })
+    
+    # Redirección inicial por rol
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = "Historial de Encuesta" if role == "auditor" else "Dashboard"
 
 def login_callback():
+    """Procesa el intento de login."""
     email = st.session_state.get("login_email", "").strip().lower()
     password = st.session_state.get("login_pass", "")
+    
+    if not email or not password:
+        st.session_state.login_error = "Ingresa correo y contraseña."
+        return
+
     try:
         res = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if res and res.user:
+            # Limpiamos errores y configuramos sesión
+            if "login_error" in st.session_state: del st.session_state.login_error
             _setup_session(res.user)
-            st.session_state.just_logged_in = True
         else:
             st.session_state.login_error = "Credenciales incorrectas."
-    except:
-        st.session_state.login_error = "Error de autenticación."
+    except Exception:
+        st.session_state.login_error = "Error de conexión o credenciales inválidas."
 
 def handle_logout():
     supabase.auth.sign_out()
-    st.session_state.clear()
+    # Limpieza total para evitar que la sesión quede "colgada"
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
     st.rerun()
 
 # ============================================================
-# 2. INTERFAZ DE ACCESO
+# 2. INTERFAZ DE AUTENTICACIÓN
 # ============================================================
 
 def render_password_reset_form():
@@ -88,7 +98,8 @@ def render_password_reset_form():
                 except: st.error("Error al enviar el correo.")
     else:
         with st.form("otp_verify"):
-            otp_code = st.text_input("Código OTP recibido")
+            st.info(f"Código enviado a: {st.session_state.temp_email}")
+            otp_code = st.text_input("Código OTP")
             new_pass = st.text_input("Nueva contraseña (mín. 8 caracteres)", type="password")
             if st.form_submit_button("Restablecer y volver al Login"):
                 try:
@@ -98,23 +109,26 @@ def render_password_reset_form():
                         "type": "recovery"
                     })
                     supabase.auth.update_user({"password": new_pass})
-                    st.success("✅ Contraseña actualizada.")
+                    st.success("✅ Contraseña actualizada correctamente.")
                     time.sleep(2)
+                    # Cumplimos tu instrucción: redirigir a login tras recuperar
                     st.session_state.clear() 
                     st.rerun()
                 except: st.error("Código inválido o expirado.")
 
 def render_auth_page():
-    if st.session_state.get("just_logged_in"): return
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
         st.title("Acceso al Sistema")
         tabs = st.tabs(["🔑 Login", "📝 Registro", "🔄 Recuperar"])
+        
         with tabs[0]:
-            if st.session_state.get("login_error"): st.error(st.session_state.login_error)
+            if "login_error" in st.session_state: 
+                st.error(st.session_state.login_error)
             st.text_input("Correo electrónico", key="login_email")
             st.text_input("Contraseña", type="password", key="login_pass")
             st.button("Iniciar Sesión", use_container_width=True, type="primary", on_click=login_callback)
+            
         with tabs[1]:
             st.subheader("Nuevo Usuario")
             reg_email = st.text_input("Correo institucional", key="reg_email")
@@ -128,13 +142,16 @@ def render_auth_page():
                             "email": reg_email, "password": reg_pass,
                             "options": {"data": {"full_name": reg_name, "role": reg_role}}
                         })
-                        st.success("✅ Registro enviado. Revisa tu correo.")
+                        st.success("✅ Registro enviado. Revisa tu correo para confirmar.")
                     except Exception as e: st.error(f"Error: {e}")
+                else:
+                    st.warning("Completa todos los campos (Pass mín. 8 caracteres).")
+                    
         with tabs[2]:
             render_password_reset_form()
 
 # ============================================================
-# 3. SIDEBAR CON MENÚ POR ROL
+# 3. SIDEBAR Y NAVEGACIÓN POR ROL
 # ============================================================
 
 def render_sidebar():
@@ -147,13 +164,12 @@ def render_sidebar():
         st.caption(f"🕒 {st.session_state.get('session_time_pe')}")
         st.markdown("---")
         
-        # MENÚ DINÁMICO: Todos tienen acceso a "Calificar Dashboard"
-        menu = []
+        # Definición de menú según rol
         if role == "admin":
             menu = ["Dashboard", "Historial de Encuesta", "Calificar Dashboard", "Módulo de Usabilidad"]
         elif role == "analista":
             menu = ["Dashboard", "Historial de Encuesta", "Calificar Dashboard"]
-        elif role == "auditor":
+        else: # auditor
             menu = ["Historial de Encuesta", "Calificar Dashboard"]
         
         for p in menu:
@@ -166,27 +182,42 @@ def render_sidebar():
             handle_logout()
 
 # ============================================================
-# 4. EJECUCIÓN DINÁMICA
+# 4. LÓGICA DE CONTROL PRINCIPAL
 # ============================================================
 
-if st.session_state.get("authenticated"):
-    if "just_logged_in" in st.session_state: del st.session_state["just_logged_in"]
+# Paso 1: Verificar si ya hay una sesión autenticada en el estado de Streamlit
+if st.session_state.get("authenticated") is True:
     render_sidebar()
     current = st.session_state.get("current_page")
-    
-    if current == "Dashboard": 
+    role = st.session_state.get("user_role")
+
+    # Ejecución de módulos con protección de ruta
+    if current == "Dashboard" and role in ["admin", "analista"]:
         render_rotacion_dashboard()
-    elif current == "Historial de Encuesta": 
+    elif current == "Historial de Encuesta":
         historial_encuestas_module()
     elif current == "Calificar Dashboard":
-        render_formulario_encuesta() # <--- Llamada a la encuesta
-    elif current == "Módulo de Usabilidad" and st.session_state.user_role == "admin":
+        render_formulario_encuesta()
+    elif current == "Módulo de Usabilidad" and role == "admin":
         render_modulo_usabilidad()
+    else:
+        # Si por alguna razón el usuario está en una página no permitida, lo mandamos a la base
+        st.warning("No tienes permisos para esta sección.")
+        st.session_state.current_page = "Historial de Encuesta"
+        st.rerun()
+
+# Paso 2: Si no está autenticado, intentar recuperar de Supabase o mostrar Login
 else:
     try:
-        session = supabase.auth.get_session()
-        if session and session.user:
-            _setup_session(session.user)
-            st.rerun()
-        else: render_auth_page()
-    except: render_auth_page()
+        # Solo intentamos recuperar sesión si no hay un error de login actual
+        if "login_error" not in st.session_state:
+            session_resp = supabase.auth.get_session()
+            if session_resp and session_resp.session:
+                _setup_session(session_resp.session.user)
+                st.rerun()
+            else:
+                render_auth_page()
+        else:
+            render_auth_page()
+    except:
+        render_auth_page()
