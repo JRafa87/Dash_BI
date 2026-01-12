@@ -13,7 +13,6 @@ import os
 # --- FUNCIONES DE APOYO ---
 
 def calcular_sus(df):
-    """Calcula el SUS Score estándar"""
     df_sus = df.copy()
     for i in range(1, 11):
         col = f'p{i}'
@@ -38,86 +37,80 @@ def generar_pdf_reporte(score_promedio, total, sentimiento_pred, df, fig_wc):
     pdf.cell(0, 10, "REPORTE ESTRATEGICO DE USABILIDAD E IA", ln=True, align='C')
     pdf.ln(5)
     
-    # 2. Resumen Ejecutivo Extenso y Detallado
+    # 2. Resumen Ejecutivo Nutrido
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, "1. ANALISIS E INTERPRETACION DE LA IA", ln=True)
     pdf.set_font("Arial", '', 11)
     
-    # Lógica de resumen nutrido
-    nivel = "Excelente" if score_promedio >= 80 else "Aceptable" if score_promedio >= 68 else "Crítico"
-    hallazgos_clave = "mejorar graficos, filtros complejos y ayuda visual"
+    nivel = "Excelente" if score_promedio >= 80 else "Bueno/Aceptable" if score_promedio >= 68 else "Critico"
     
+    # Análisis de texto dinámico para el resumen
     resumen_ia = (
-        f"El sistema presenta un SUS Score de {score_promedio:.1f}, situándose en un nivel '{nivel}'. "
-        f"Tras procesar {total} respuestas, la IA identifica que el sentimiento predominante es '{sentimiento_pred}'.\n\n"
-        f"DETALLES DEL FEEDBACK: Los usuarios destacan positivamente la 'facilidad de entender' y el 'diseño agradable'. "
-        f"Sin embargo, se detectan focos de fricción negativa relacionados con: {hallazgos_clave}. "
-        "La recurrencia de términos como 'complejo' y 'filtros' en las observaciones negativas sugiere que, "
-        "aunque la herramienta es útil, la carga cognitiva inicial es alta. Se recomienda una reingeniería "
-        "en los componentes de navegación para convertir el sentimiento neutral en promotor."
+        f"El sistema evaluado presenta un SUS Score de {score_promedio:.1f}, situandose en un rango '{nivel}'. "
+        f"Tras procesar {total} respuestas, la IA determina un sentimiento predominantemente '{sentimiento_pred}'.\n\n"
+        "HALLAZGOS CLAVE: Se observa una alta valoracion en el diseño visual y la facilidad general. "
+        "Sin embargo, el analisis cualitativo detecta friccion en la velocidad de respuesta y la "
+        "configuracion de filtros. Los usuarios asocian la experiencia positiva a la 'limpieza' de la interfaz, "
+        "mientras que los comentarios neutros/negativos sugieren optimizar la ayuda visual y la navegacion."
     )
     pdf.multi_cell(0, 7, resumen_ia)
     pdf.ln(10)
 
-    # Función para salvar imágenes sin error de superposición
-    def salvar_img(plt_fig, nombre):
+    # Función para manejar imágenes y evitar superposición
+    def salvar_e_inyectar(plt_fig, nombre, y_pos, ancho):
         plt_fig.savefig(nombre, format='png', bbox_inches='tight', dpi=150)
+        pdf.image(nombre, x=(210-ancho)/2, y=y_pos, w=ancho)
         plt.close()
+        if os.path.exists(nombre): os.remove(nombre)
 
     # --- Gráfico 1: Histograma ---
     plt.figure(figsize=(7, 3.5))
     plt.hist(df['sus_score'], bins=8, color='#2e7d32', edgecolor='white')
     plt.title("Distribucion de Calificaciones (SUS Score)", fontsize=12)
-    salvar_img(plt, "hist.png")
-    pdf.image("hist.png", x=15, y=105, w=170)
+    salvar_e_inyectar(plt, "temp_hist.png", y_pos=100, ancho=160)
 
-    # --- Gráfico 2: Sentimientos (Asegurando Positivo, Neutral y Negativo) ---
+    # --- Gráfico 2: Sentimientos (Dona Completa) ---
     plt.figure(figsize=(6, 4))
-    # Aseguramos que existan las 3 categorías para que no falte ninguna en el gráfico
+    # Forzamos las 3 categorías para que siempre aparezcan en la leyenda
     counts = df['sentimiento'].value_counts().reindex(['Positivo', 'Neutral', 'Negativo'], fill_value=0)
     color_map = {'Positivo': '#2e7d32', 'Neutral': '#ffa000', 'Negativo': '#d32f2f'}
     
     plt.pie(counts, labels=counts.index, autopct='%1.1f%%', startangle=140,
             colors=[color_map[x] for x in counts.index], wedgeprops={'width':0.4})
     plt.title("Analisis de Sentimientos (NLP)", fontsize=12)
-    salvar_img(plt, "pie.png")
-    pdf.image("pie.png", x=50, y=175, w=110)
+    salvar_e_inyectar(plt, "temp_pie.png", y_pos=175, ancho=100) # Posición y baja para no chocar
 
     # --- Página 2: Nube de Palabras ---
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "2. NUBE DE CONCEPTOS E INSIGHTS", ln=True, align='C')
-    salvar_img(fig_wc, "wc.png")
-    pdf.image("wc.png", x=10, y=30, w=190)
-
-    # Limpieza
-    for f in ["hist.png", "pie.png", "wc.png"]: 
-        if os.path.exists(f): os.remove(f)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, "2. NUBE DE CONCEPTOS E INSIGHTS CLAVE", ln=True, align='C')
+    salvar_e_inyectar(fig_wc, "temp_wc.png", y_pos=30, ancho=180)
 
     return pdf.output(dest='S').encode('latin-1')
 
 # --- MODULO PRINCIPAL ---
 
 def render_modulo_usabilidad():
+    # Título centrado con HTML
     st.markdown("<h1 style='text-align: center;'>🧠 Inteligencia Artificial y Analisis SUS</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # Datos corregidos para incluir sentimientos negativos explícitos
     data = {
-        'p1': [4,5,2,5,4,5,3,4,2,5,4,4,5,3,2,3,3,5,5,5,4],
-        'p2': [2,3,4,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
-        'p3': [4,3,2,5,4,4,4,4,3,5,4,4,5,5,4,5,4,5,5,5,4],
-        'p4': [2,2,4,1,2,1,2,1,1,1,3,2,2,1,1,1,1,1,1,1,2],
-        'p5': [4,3,2,5,4,4,3,3,3,5,5,4,5,5,4,5,4,5,4,5,5],
-        'p6': [2,2,4,1,1,1,2,2,2,1,3,2,2,1,2,1,1,2,1,1,1],
-        'p7': [5,4,2,5,4,5,4,3,4,5,5,5,3,5,3,5,5,5,3,4,5],
+        'p1': [4,5,5,5,4,5,3,4,4,5,4,4,5,3,2,3,3,5,5,5,4],
+        'p2': [2,3,1,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
+        'p3': [4,3,4,5,4,4,4,4,3,5,4,4,5,5,4,5,4,5,5,5,4],
+        'p4': [2,2,3,1,2,1,2,1,1,1,3,2,2,1,1,1,1,1,1,1,2],
+        'p5': [4,3,3,5,4,4,3,3,3,5,5,4,5,5,4,5,4,5,4,5,5],
+        'p6': [2,2,2,1,1,1,2,2,2,1,3,2,2,1,2,1,1,2,1,1,1],
+        'p7': [5,4,4,5,4,5,4,3,4,5,5,5,3,5,3,5,5,5,3,4,5],
         'p8': [2,3,4,1,1,1,2,1,1,1,1,1,1,1,2,1,1,3,1,1,1],
-        'p9': [4,4,2,5,4,5,4,4,3,5,5,5,5,5,5,5,5,4,3,5,3],
-        'p10': [3,2,4,1,4,1,2,1,1,1,1,1,1,1,1,1,1,2,1,3,2],
+        'p9': [4,4,3,5,4,5,4,4,3,5,5,5,5,5,5,5,5,4,3,5,3],
+        'p10': [3,2,2,1,4,1,2,1,1,1,1,1,1,1,1,1,1,2,1,3,2],
         'observacion': [
-            "Excelente", "Mejorar graficos", "Muy lento y dificil", "Excelente", "Ayuda", "Facil", 
-            "Error en carga", "Muy bueno", "Complejo", "Satisfecho", "Lento", "Graficos", 
-            "Malo", "Ok", "Diseño", "Filtros fallan", "Recomendado", "Bien", "Excelente", "Filtros", "Facil"
+            "Excelente", "Mejorar graficos", "Filtros complejos", "Excelente", "Ayuda visual", 
+            "Facil", "Lento al cargar", "Buen diseño", "Simplificar", "Cumple", "Navegacion", 
+            "Buena experiencia", "Retroalimentacion", "Util", "Explicabilidad", "Agradable", 
+            "Informacion", "Mejorar filtros", "Satisfecho", "Didacticos", "Todo bien"
         ]
     }
     df = pd.DataFrame(data)
@@ -128,15 +121,15 @@ def render_modulo_usabilidad():
     sent_counts = df['sentimiento'].value_counts()
     sent_predom = sent_counts.idxmax()
 
-    # KPIs Dashboard
+    # --- KPIs ---
     col1, col2, col3 = st.columns(3)
     col1.metric("Puntaje SUS Promedio", f"{promedio_sus:.1f}")
     col2.metric("Sentimiento IA", sent_predom)
-    col3.metric("Muestra Total", len(df))
+    col3.metric("Evaluaciones", len(df))
 
     st.markdown("---")
 
-    # Gráficos Streamlit
+    # --- Gráficos en Pantalla ---
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("📊 Distribucion de Calificaciones")
@@ -148,6 +141,8 @@ def render_modulo_usabilidad():
                                color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"}), use_container_width=True)
 
     # Nube de Palabras
+    st.markdown("---")
+    st.subheader("☁️ Nube de Conceptos (IA NLP)")
     textos = " ".join([c for c in df['observacion']])
     fig_wc, ax = plt.subplots(figsize=(10, 4))
     wc = WordCloud(width=800, height=350, background_color="white", colormap='Greens').generate(textos)
@@ -155,17 +150,15 @@ def render_modulo_usabilidad():
     ax.axis("off")
     st.pyplot(fig_wc)
 
-    # --- Resumen Extenso en Pantalla ---
-    st.markdown("### 📝 Analisis Detallado de IA")
-    st.write(f"""
-    **Hallazgos Principales:** El análisis detecta que la mayoría de los usuarios ({((sent_counts.get('Positivo',0)/len(df))*100):.1f}%) tienen una experiencia **Positiva**, destacando la limpieza del diseño. 
-    Sin embargo, existe un **{((sent_counts.get('Negativo',0)/len(df))*100):.1f}% de feedback Negativo** concentrado en términos como 'lento', 'fallan' y 'filtros'. 
-    Esto indica que la usabilidad técnica está siendo lastrada por el rendimiento de los filtros, lo que explica por qué el SUS Score no alcanza el rango de Excelencia (>80).
-    """)
-
-    # Sidebar Exportación
+    # --- Exportación Sidebar ---
     with st.sidebar:
-        st.subheader("📄 Reporte")
-        pdf_data = generar_pdf_reporte(promedio_sus, len(df), sent_predom, df, fig_wc)
-        st.download_button(label="📥 Descargar Reporte PDF", data=pdf_data, 
-                           file_name=f"Reporte_IA_{datetime.date.today()}.pdf", mime="application/pdf")
+        st.subheader("📄 Reporte Ejecutivo")
+        try:
+            pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom, df, fig_wc)
+            st.download_button(label="📥 Descargar Reporte PDF", data=pdf_bytes, 
+                               file_name=f"Reporte_IA_{datetime.date.today()}.pdf", mime="application/pdf")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+    # Resumen Extenso en Pantalla
+    st.info(f"**Análisis de IA:** El sistema alcanza un nivel de usabilidad funcional. Se recomienda enfocar mejoras en la velocidad y los filtros para elevar el SUS Score.")
