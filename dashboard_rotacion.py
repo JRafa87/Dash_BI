@@ -4,7 +4,7 @@ import plotly.express as px
 from supabase import create_client, Client
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(layout="wide", page_title="Reporte Ejecutivo de Talento")
+st.set_page_config(layout="wide", page_title="Portal de Analítica de Talento")
 
 @st.cache_data(ttl=600)
 def load_consolidado():
@@ -14,25 +14,36 @@ def load_consolidado():
     res = supabase.table("consolidado").select("*").execute()
     df = pd.DataFrame(res.data)
     
-    # Procesamiento y Traducciones
+    # Procesamiento y Traducciones Totales
     df['Estado'] = df['FechaSalida'].apply(lambda x: 'Renunció' if pd.notna(x) else 'Activo')
+    df['MonthlyIncome'] = pd.notna(df['MonthlyIncome']) # Asegurar que es numérico
     df['MonthlyIncome'] = pd.to_numeric(df['MonthlyIncome'], errors='coerce')
     df['Genero'] = df['Gender'].map({'Male': 'Masculino', 'Female': 'Femenino'}).fillna(df['Gender'])
     df['HorasExtra'] = df['OverTime'].map({'Yes': 'Sí', 'No': 'No'}).fillna(df['OverTime'])
+    
+    # Traducir Departamentos si vienen en inglés
+    traduccion_dept = {
+        'Sales': 'Ventas',
+        'Research & Development': 'I+D',
+        'Human Resources': 'Recursos Humanos'
+    }
+    df['Departamento'] = df['Department'].replace(traduccion_dept)
     return df
 
 def render_rotacion_dashboard():
     df_raw = load_consolidado()
 
-    st.title("Análisis Estratégico de Capital Humano")
-    st.markdown("_Exploración de los factores que impulsan la retención y rotación de nuestra fuerza laboral._")
+    # Título Centrado y Estilizado
+    st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>Reporte Estratégico de Capital Humano</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #4B5563;'>Análisis ejecutivo sobre la retención y el comportamiento del personal</p>", unsafe_allow_html=True)
     
     # --- FILTROS SUPERIORES ---
+    st.markdown("<br>", unsafe_allow_html=True)
     f1, f2 = st.columns(2)
     with f1:
-        genero_sel = st.selectbox("Filtro por Género:", ['Todos'] + sorted(df_raw['Genero'].unique().tolist()))
+        genero_sel = st.selectbox("🎯 Filtrar por Género:", ['Todos'] + sorted(df_raw['Genero'].unique().tolist()))
     with f2:
-        contrato_sel = st.selectbox("Filtro por Tipo de Contrato:", ['Todos'] + sorted(df_raw['Tipocontrato'].dropna().unique().tolist()))
+        contrato_sel = st.selectbox("📄 Filtrar por Tipo de Contrato:", ['Todos'] + sorted(df_raw['Tipocontrato'].dropna().unique().tolist()))
 
     # Aplicar Filtros
     df = df_raw.copy()
@@ -41,105 +52,111 @@ def render_rotacion_dashboard():
 
     st.markdown("---")
 
-    # --- KPIs COMPACTOS ---
+    # --- KPIs CON COLOR Y DISEÑO AJUSTADO ---
     total = len(df)
     bajas = len(df[df['Estado'] == 'Renunció'])
     tasa = (bajas/total*100) if total > 0 else 0
     ingreso = df['MonthlyIncome'].mean() if not df.empty else 0
 
     st.markdown(f"""
-        <div style="display: flex; justify-content: space-around; gap: 10px; margin-bottom: 20px;">
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">
-                <span style="font-size: 12px; color: #666; font-weight: bold; display: block;">HEADCOUNT</span>
-                <span style="font-size: 24px; color: #333; font-weight: bold;">{total}</span>
+        <div style="display: flex; justify-content: space-around; gap: 15px; margin-bottom: 25px;">
+            <div style="flex: 1; background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%); padding: 12px; border-radius: 10px; border-bottom: 4px solid #0284C7; text-align: center;">
+                <span style="font-size: 12px; color: #0369A1; font-weight: bold; display: block;">PLANTILLA TOTAL</span>
+                <span style="font-size: 26px; color: #0C4A6E; font-weight: bold;">{total}</span>
             </div>
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">
-                <span style="font-size: 12px; color: #666; font-weight: bold; display: block;">BAJAS</span>
-                <span style="font-size: 24px; color: #dc3545; font-weight: bold;">{bajas}</span>
+            <div style="flex: 1; background: linear-gradient(135deg, #FFFBED 0%, #FEF3C7 100%); padding: 12px; border-radius: 10px; border-bottom: 4px solid #D97706; text-align: center;">
+                <span style="font-size: 12px; color: #92400E; font-weight: bold; display: block;">PERSONAL ACTIVO</span>
+                <span style="font-size: 26px; color: #78350F; font-weight: bold;">{total - bajas}</span>
             </div>
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">
-                <span style="font-size: 12px; color: #666; font-weight: bold; display: block;">% ROTACIÓN</span>
-                <span style="font-size: 24px; color: #333; font-weight: bold;">{tasa:.1f}%</span>
+            <div style="flex: 1; background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%); padding: 12px; border-radius: 10px; border-bottom: 4px solid #DC2626; text-align: center;">
+                <span style="font-size: 12px; color: #991B1B; font-weight: bold; display: block;">ROTACIÓN (BAJAS)</span>
+                <span style="font-size: 26px; color: #B91C1C; font-weight: bold;">{tasa:.1f}%</span>
             </div>
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">
-                <span style="font-size: 12px; color: #666; font-weight: bold; display: block;">SALARIO PROM.</span>
-                <span style="font-size: 24px; color: #333; font-weight: bold;">${ingreso:,.0f}</span>
+            <div style="flex: 1; background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%); padding: 12px; border-radius: 10px; border-bottom: 4px solid #16A34A; text-align: center;">
+                <span style="font-size: 12px; color: #166534; font-weight: bold; display: block;">SALARIO PROMEDIO</span>
+                <span style="font-size: 26px; color: #14532D; font-weight: bold;">${ingreso:,.0f}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    # --- STORYTELLING: EL PERFIL DEL TALENTO ---
-    st.markdown("### Mapa de Talento: Edad vs Salario")
-    st.caption("Visualice cómo se distribuyen los empleados. Los puntos rojos indican áreas donde la competitividad salarial o la edad pueden estar influyendo en la decisión de salida.")
+    # --- 1. DISPERSIÓN: STORYTELLING SOBRE EL PERFIL ---
+    st.markdown("<h3 style='text-align: center;'>Relación de Edad y Compensación</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #6B7280; font-size: 14px;'>Analizamos si existe una correlación entre el nivel salarial y la fuga de talento según la etapa de vida del empleado.</p>", unsafe_allow_html=True)
     fig_scat = px.scatter(
         df, x='Age', y='MonthlyIncome', color='Estado',
         hover_data={'Age': True, 'MonthlyIncome': ':$,.0f', 'JobRole': True},
-        color_discrete_map={'Renunció': '#EF5350', 'Activo': '#26A69A'},
-        labels={'Age': 'Edad', 'MonthlyIncome': 'Sueldo Mensual', 'Estado': 'Estado'},
+        color_discrete_map={'Renunció': '#EF4444', 'Activo': '#10B981'},
+        labels={'Age': 'Edad del Colaborador', 'MonthlyIncome': 'Ingreso Mensual', 'Estado': 'Situación Actual'},
         height=450, template="plotly_white"
     )
-    fig_scat.update_layout(showlegend=True)
     st.plotly_chart(fig_scat, use_container_width=True)
 
     st.markdown("---")
 
-    # --- STORYTELLING: MOTIVACIÓN Y BALANCE ---
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("### Fugas por Nivel de Satisfacción")
-        df_sat = df[df['Estado'] == 'Renunció'].groupby('JobSatisfaction').size().reset_index(name='Bajas')
-        fig_sat = px.bar(df_sat, x='JobSatisfaction', y='Bajas', color_discrete_sequence=['#EF5350'])
-        fig_sat.update_layout(coloraxis_showscale=False) # Quita la barra de color lateral
+    # --- 2. FACTORES PSICOLÓGICOS Y BALANCE ---
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("<h3 style='text-align: center;'>Impacto de la Satisfacción</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 13px;'>Distribución de bajas según el nivel de felicidad reportado (1 al 4).</p>", unsafe_allow_html=True)
+        df_sat = df[df['Estado'] == 'Renunció'].groupby('JobSatisfaction').size().reset_index(name='Cantidad')
+        fig_sat = px.bar(df_sat, x='JobSatisfaction', y='Cantidad', color_discrete_sequence=['#F87171'])
+        fig_sat.update_layout(coloraxis_showscale=False, xaxis_title="Nivel de Satisfacción", yaxis_title="Número de Bajas")
         st.plotly_chart(fig_sat, use_container_width=True)
 
-    with col2:
-        st.markdown("### Fugas por Equilibrio Vida-Trabajo")
-        df_wb = df[df['Estado'] == 'Renunció'].groupby('WorkLifeBalance').size().reset_index(name='Bajas')
-        fig_wb = px.bar(df_wb, x='WorkLifeBalance', y='Bajas', color_discrete_sequence=['#FFB74D'])
-        fig_wb.update_layout(coloraxis_showscale=False) # Quita la barra de color lateral
+    with c2:
+        st.markdown("<h3 style='text-align: center;'>Equilibrio Vida-Trabajo</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 13px;'>¿Es el tiempo personal un factor crítico para las renuncias en este grupo?</p>", unsafe_allow_html=True)
+        df_wb = df[df['Estado'] == 'Renunció'].groupby('WorkLifeBalance').size().reset_index(name='Cantidad')
+        fig_wb = px.bar(df_wb, x='WorkLifeBalance', y='Cantidad', color_discrete_sequence=['#FBBF24'])
+        fig_wb.update_layout(coloraxis_showscale=False, xaxis_title="Nivel de Balance", yaxis_title="Número de Bajas")
         st.plotly_chart(fig_wb, use_container_width=True)
 
     st.markdown("---")
 
-    # --- STORYTELLING: ESTRUCTURA Y CARGA ---
-    col3, col4 = st.columns(2)
-    with col3:
-        st.markdown("### Tasa de Deserción por Área")
-        dept_churn = df.groupby('Department')['Estado'].value_counts(normalize=True).unstack().fillna(0)
+    # --- 3. CARGA LABORAL Y DEPARTAMENTOS ---
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("<h3 style='text-align: center;'>Tasa de Fuga por Departamento</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 13px;'>Porcentaje comparativo de renuncias según el área organizacional.</p>", unsafe_allow_html=True)
+        dept_churn = df.groupby('Departamento')['Estado'].value_counts(normalize=True).unstack().fillna(0)
         if 'Renunció' in dept_churn.columns:
-            fig_dept = px.bar(dept_churn, x=dept_churn.index, y='Renunció', color_discrete_sequence=['#FF7043'])
-            fig_dept.update_layout(yaxis_tickformat='.0%', coloraxis_showscale=False)
+            fig_dept = px.bar(dept_churn, x=dept_churn.index, y='Renunció', color_discrete_sequence=['#FB923C'])
+            fig_dept.update_layout(yaxis_tickformat='.0%', yaxis_title="% de Salidas", xaxis_title="Área")
             st.plotly_chart(fig_dept, use_container_width=True)
 
-    with col4:
-        st.markdown("### Impacto de Horas Extra en Bajas")
+    with c4:
+        st.markdown("<h3 style='text-align: center;'>Prevalencia de Horas Extra</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 13px;'>¿Qué porcentaje de los que se fueron trabajaban más de lo debido?</p>", unsafe_allow_html=True)
         df_ren = df[df['Estado'] == 'Renunció']
-        fig_over = px.pie(df_ren, names='HorasExtra', hole=0.5, color_discrete_sequence=['#EF5350', '#90CAF9'])
+        fig_over = px.pie(df_ren, names='HorasExtra', hole=0.6, color_discrete_sequence=['#EF4444', '#60A5FA'])
         st.plotly_chart(fig_over, use_container_width=True)
 
-    # --- STORYTELLING: EL CICLO DE VIDA ---
+    # --- 4. ANTIGÜEDAD (MODO OVERLAY) ---
     st.markdown("---")
-    st.markdown("### Permanencia en la Compañía")
-    st.caption("Este gráfico de superposición (overlay) permite identificar si las renuncias ocurren principalmente en los primeros años (curva de aprendizaje) o en etapas más avanzadas.")
+    st.markdown("<h3 style='text-align: center;'>Ciclo de Permanencia en la Organización</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #6B7280; font-size: 14px;'>Comparativa de antigüedad entre empleados activos y aquellos que decidieron retirarse.</p>", unsafe_allow_html=True)
     fig_hist = px.histogram(
         df, x="YearsAtCompany", color="Estado", barmode="overlay",
-        color_discrete_map={'Renunció': '#EF5350', 'Activo': '#26A69A'},
-        labels={'YearsAtCompany': 'Años en la Empresa'},
+        color_discrete_map={'Renunció': '#EF4444', 'Activo': '#10B981'},
+        labels={'YearsAtCompany': 'Años de Antigüedad', 'count': 'Total de Personas'},
         height=400, template="plotly_white"
     )
     st.plotly_chart(fig_hist, use_container_width=True)
 
-    # --- RESUMEN EJECUTIVO FINAL ---
+    # --- CONCLUSIONES FINALES ---
     st.markdown("---")
-    st.subheader("Resumen Ejecutivo")
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>Interpretación Ejecutiva</h2>", unsafe_allow_html=True)
     
-    # Lógica de conclusión basada en datos
-    top_dept = df.groupby('Department')['Estado'].value_counts(normalize=True).unstack().fillna(0)['Renunció'].idxmax()
-    impacto_he = "alto" if len(df_ren[df_ren['HorasExtra'] == 'Sí']) > len(df_ren)/2 else "moderado"
+    # Lógica para storytelling automático
+    try:
+        peor_area = df.groupby('Departamento')['Estado'].value_counts(normalize=True).unstack().fillna(0)['Renunció'].idxmax()
+    except:
+        peor_area = "Información insuficiente"
     
     st.info(f"""
-    **Conclusión Estratégica:** Actualmente, el segmento bajo el contrato de **{contrato_sel}** muestra que el departamento de **{top_dept}** es el foco principal de atención. 
-    Se observa un impacto **{impacto_he}** de las horas extra en la rotación. La mayor densidad de bajas se concentra en empleados con niveles de satisfacción por debajo del promedio.
+    📢 **Resumen del Análisis:** Bajo el filtro de **{contrato_sel}**, observamos una rotación del **{tasa:.1f}%**. 
+    
+    El área de **{peor_area}** presenta la mayor tasa de deserción relativa. Se recomienda prestar especial atención al gráfico de Horas Extra, ya que el desgaste es un factor que coincide con los niveles bajos de satisfacción reportados.
     """)
 
 if __name__ == "__main__":
