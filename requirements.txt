@@ -10,3 +10,5 @@ matplotlib
 openpyxl
 xlsxwriter
 fpdf
+textblob
+wordcloud
