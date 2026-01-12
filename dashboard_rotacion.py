@@ -23,7 +23,7 @@ def load_consolidado():
     
     traduccion_dept = {
         'Sales': 'Ventas',
-        'Research & Development': 'I+D',
+        'Research & Development': 'Investigación y Desarrollo',
         'Human Resources': 'Recursos Humanos'
     }
     df['Departamento'] = df['Department'].replace(traduccion_dept)
