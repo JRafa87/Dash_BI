@@ -79,16 +79,17 @@ def render_rotacion_dashboard():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- 1. DISPERSIÓN: STORYTELLING SOBRE EL PERFIL ---
-    st.markdown("<h3 style='text-align: center;'>Relación de Edad y Compensación</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #6B7280; font-size: 14px;'>Analizamos si existe una correlación entre el nivel salarial y la fuga de talento según la etapa de vida del empleado.</p>", unsafe_allow_html=True)
+    # --- STORYTELLING: EL PERFIL DEL TALENTO ---
+    st.markdown("### Mapa de Talento: Edad vs Salario")
+    st.caption("Visualice cómo se distribuyen los empleados. Los puntos rojos indican áreas donde la competitividad salarial o la edad pueden estar influyendo en la decisión de salida.")
     fig_scat = px.scatter(
         df, x='Age', y='MonthlyIncome', color='Estado',
         hover_data={'Age': True, 'MonthlyIncome': ':$,.0f', 'JobRole': True},
-        color_discrete_map={'Renunció': '#EF4444', 'Activo': '#10B981'},
-        labels={'Age': 'Edad del Colaborador', 'MonthlyIncome': 'Ingreso Mensual', 'Estado': 'Situación Actual'},
+        color_discrete_map={'Renunció': '#EF5350', 'Activo': '#26A69A'},
+        labels={'Age': 'Edad', 'MonthlyIncome': 'Sueldo Mensual', 'Estado': 'Estado'},
         height=450, template="plotly_white"
     )
+    fig_scat.update_layout(showlegend=True)
     st.plotly_chart(fig_scat, use_container_width=True)
 
     st.markdown("---")
