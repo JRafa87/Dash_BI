@@ -1,87 +1,79 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 from textblob import TextBlob
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import datetime
+import io
+from PIL import Image
 
 # --- FUNCIONES DE APOYO ---
 
 def calcular_sus(df):
-    """Calcula el SUS Score: Impares (x-1), Pares (5-x)"""
     df_sus = df.copy()
     for i in range(1, 11):
         col = f'p{i}'
-        if i % 2 != 0:
-            df_sus[col] = df_sus[col] - 1
-        else:
-            df_sus[col] = 5 - df_sus[col]
+        if i % 2 != 0: df_sus[col] = df_sus[col] - 1
+        else: df_sus[col] = 5 - df_sus[col]
     return df_sus[[f'p{i}' for i in range(1, 11)]].sum(axis=1) * 2.5
 
 def analizar_sentimiento_ia(texto):
-    """Procesamiento de Lenguaje Natural local"""
-    if not texto or texto.lower() in ["sin comentario", "nan", ""]:
-        return "Neutral"
-    
-    # Análisis de polaridad
-    blob = TextBlob(texto)
-    score = blob.sentiment.polarity
-    
-    # Refuerzo manual para palabras en español
-    pos = ['excelente', 'bueno', 'facil', 'util', 'satisfecho', 'bien']
-    neg = ['lento', 'error', 'complejo', 'dificil', 'malo', 'engorroso']
-    
-    if any(p in texto.lower() for p in pos): score += 0.2
-    if any(p in texto.lower() for p in neg): score -= 0.2
-    
+    if not texto or texto.lower() in ["sin comentario", "nan", ""]: return "Neutral"
+    score = TextBlob(texto).sentiment.polarity
     if score > 0.1: return "Positivo"
     elif score < -0.1: return "Negativo"
     else: return "Neutral"
 
-def generar_pdf_reporte(score_promedio, total, sentimiento_dominante):
-    """Genera PDF usando fpdf2 (Soporta UTF-8 nativo)"""
+def generar_pdf_avanzado(score_promedio, total, sentimiento, fig_hist, fig_pie, fig_wc):
+    """Genera un PDF que incluye las gráficas del dashboard"""
     pdf = FPDF()
     pdf.add_page()
-    # Usamos fuentes core (Helvetica/Arial)
-    pdf.set_font("Helvetica", 'B', 16)
-    pdf.cell(0, 10, "REPORTE ESTRATEGICO DE USABILIDAD E IA", ln=True, align='C')
-    pdf.ln(10)
     
-    pdf.set_font("Helvetica", '', 12)
-    fecha = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    pdf.cell(0, 10, f"Fecha de emision: {fecha}", ln=True)
+    # Encabezado
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "REPORTE EJECUTIVO DE USABILIDAD (REFLEJO DASHBOARD)", ln=True, align='C')
     pdf.ln(5)
     
-    # Sección SUS
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.cell(0, 10, "1. Metricas del Sistema (SUS Score)", ln=True)
-    pdf.set_font("Helvetica", '', 12)
-    pdf.multi_cell(0, 10, f"Puntaje SUS Promedio: {score_promedio:.2f} / 100\n"
-                         f"Muestra total: {total} usuarios evaluados.")
+    # Métricas Principales
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, f"Puntaje SUS: {score_promedio:.1f} | Sentimiento: {sentimiento} | Muestra: {total}", ln=True, align='C')
     pdf.ln(5)
-    
-    # Sección IA
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.cell(0, 10, "2. Analisis de Feedback Cualitativo (IA)", ln=True)
-    pdf.set_font("Helvetica", '', 12)
-    pdf.multi_cell(0, 10, f"Sentimiento Predominante: {sentimiento_dominante}\n"
-                         "Resumen Ejecutivo: El procesamiento automatico detecta que los usuarios "
-                         "valoran la integracion de funciones, recomendando mejorar la ayuda visual.")
-    
-    # fpdf2 devuelve los bytes directamente con .output()
-    return pdf.output()
 
-# --- MODULO PRINCIPAL ---
+    # --- INSERTAR GRÁFICA DE HISTOGRAMA ---
+    # Convertimos la gráfica de Plotly a imagen (Bytes)
+    img_hist_bytes = fig_hist.to_image(format="png", width=600, height=350)
+    img_hist = Image.open(io.BytesIO(img_hist_bytes))
+    img_hist.save("temp_hist.png")
+    pdf.image("temp_hist.png", x=10, w=180)
+    pdf.ln(5)
+
+    # --- INSERTAR GRÁFICA DE PIE ---
+    img_pie_bytes = fig_pie.to_image(format="png", width=600, height=350)
+    img_pie = Image.open(io.BytesIO(img_pie_bytes))
+    img_pie.save("temp_pie.png")
+    pdf.image("temp_pie.png", x=50, w=110)
+    
+    # --- INSERTAR NUBE DE PALABRAS ---
+    if fig_wc:
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "Nube de Conceptos Identificados", ln=True, align='C')
+        fig_wc.savefig("temp_wc.png", format="png", bbox_inches='tight')
+        pdf.image("temp_wc.png", x=10, w=180)
+
+    # Retornar el PDF como bytes de forma segura
+    return pdf.output(dest='S')
+
+# --- MÓDULO PRINCIPAL ---
 
 def render_modulo_usabilidad():
-    st.title("🧠 Inteligencia Artificial y Analisis SUS")
+    # Título Centrado
+    st.markdown("<h1 style='text-align: center;'>🧠 Inteligencia Artificial y Analisis SUS</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # CARGA DE DATOS (Usando tus 21 registros procesados)
-    # En producción, aquí harías: df = supabase.table("encuestas_usabilidad").select("*").execute()
+    # Datos (Misma estructura de 21 registros)
     data = {
         'p1': [4,5,5,5,4,5,3,4,4,5,4,4,5,3,2,3,3,5,5,5,4],
         'p2': [2,3,1,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
@@ -93,71 +85,51 @@ def render_modulo_usabilidad():
         'p8': [2,3,4,1,1,1,2,1,1,1,1,1,1,1,2,1,1,3,1,1,1],
         'p9': [4,4,3,5,4,5,4,4,3,5,5,5,5,5,5,5,5,4,3,5,3],
         'p10': [3,2,2,1,4,1,2,1,1,1,1,1,1,1,1,1,1,2,1,3,2],
-        'observacion': [
-            "Sin comentario", "Mejorar graficos", "Me costo ubicar filtros", 
-            "Excelente sistema", "Agregar ayuda visual", "Facil de entender", 
-            "Parece complejo al inicio", "Simplificar", "Agregar descripciones",
-            "Cumple su funcion", "Mejorar navegacion", "Buena experiencia",
-            "Necesita retroalimentacion", "Herramienta util", "Mejorar explicabilidad",
-            "Diseño agradable", "Informacion relevante", "Mejorar usabilidad",
-            "Estoy satisfecho", "Graficos didacticos", "Todo bien"
-        ]
+        'observacion': ["Sin comentario", "Mejorar graficos", "Excelente sistema", "Facil", "Lento", "Bien", "Complejo", "Util", "Error", "Bueno", "Mal", "Ok", "Graficos", "Data", "Rapido", "Satisfecho", "Diseño", "Interface", "Flujo", "Ayuda", "Todo bien"]
     }
     df = pd.DataFrame(data)
-
-    # CÁLCULOS IA
     df['sus_score'] = calcular_sus(df)
     df['sentimiento'] = df['observacion'].apply(analizar_sentimiento_ia)
     
     promedio_sus = df['sus_score'].mean()
-    sent_predom = df['sentimiento'].mode()[0] if not df.empty else "N/A"
+    sent_predom = df['sentimiento'].mode()[0]
 
-    # --- SIDEBAR: EXPORTACIÓN PDF ---
+    # Crear las figuras primero para poder pasarlas al PDF
+    fig_hist = px.histogram(df, x="sus_score", color_discrete_sequence=['#2e7d32'], title="Distribucion SUS")
+    fig_pie = px.pie(df, names='sentimiento', color='sentimiento', title="Sentimiento IA",
+                     color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"})
+
+    # Generar Nube de Palabras
+    textos = " ".join([str(c) for c in df['observacion'] if str(c).lower() != "sin comentario"])
+    wc = WordCloud(width=800, height=400, background_color="white").generate(textos)
+    fig_wc, ax = plt.subplots()
+    ax.imshow(wc)
+    ax.axis("off")
+
+    # Sidebar con descarga de PDF "Espejo"
     with st.sidebar:
-        st.subheader("📄 Reporte Ejecutivo")
+        st.subheader("📄 Reporte Completo")
         try:
-            pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom)
+            pdf_bytes = generar_pdf_avanzado(promedio_sus, len(df), sent_predom, fig_hist, fig_pie, fig_wc)
             st.download_button(
-                label="📥 Descargar Reporte PDF",
+                label="📥 Descargar Espejo PDF (con Gráficas)",
                 data=pdf_bytes,
-                file_name=f"Reporte_Usabilidad_{datetime.date.today()}.pdf",
+                file_name="Reporte_Dashboard_Visual.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
         except Exception as e:
-            st.error(f"Error en PDF: {e}")
+            st.error(f"Error exportando gráficas: {e}. Asegúrate de tener 'kaleido' instalado.")
 
-    # --- INTERFAZ VISUAL ---
+    # Renderizado en pantalla (Streamlit)
     col1, col2, col3 = st.columns(3)
-    col1.metric("Puntaje SUS Promedio", f"{promedio_sus:.1f}")
-    col2.metric("Sentimiento IA", sent_predom)
+    col1.metric("Puntaje SUS", f"{promedio_sus:.1f}")
+    col2.metric("Sentimiento", sent_predom)
     col3.metric("Evaluaciones", len(df))
 
-    st.markdown("---")
-
     c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("📊 Distribucion de Calificaciones")
-        fig_hist = px.histogram(df, x="sus_score", color_discrete_sequence=['#2e7d32'],
-                               labels={'sus_score':'Puntaje SUS'})
-        st.plotly_chart(fig_hist, use_container_width=True)
-
-    with c2:
-        st.subheader("😊 Analisis de Sentimientos")
-        fig_pie = px.pie(df, names='sentimiento', 
-                         color='sentimiento',
-                         color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"})
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("☁️ Nube de Conceptos (IA NLP)")
+    c1.plotly_chart(fig_hist, use_container_width=True)
+    c2.plotly_chart(fig_pie, use_container_width=True)
     
-    textos_validos = " ".join([c for c in df['observacion'] if c.lower() != "sin comentario"])
-    if len(textos_validos) > 5:
-        wc = WordCloud(width=800, height=300, background_color="white", colormap='Greens').generate(textos_validos)
-        fig_wc, ax = plt.subplots(figsize=(10, 4))
-        ax.imshow(wc, interpolation='bilinear')
-        ax.axis("off")
-        st.pyplot(fig_wc)
-
-    st.info("**💡 Resumen de Inteligencia Artificial:** La evaluacion promedio indica una usabilidad de nivel 'Aceptable'. La IA identifica que la satisfaccion general es alta, pero el feedback cualitativo sugiere optimizar la explicabilidad de las metricas.")
+    st.subheader("☁️ Nube de Conceptos")
+    st.pyplot(fig_wc)

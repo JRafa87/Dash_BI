@@ -13,3 +13,4 @@ fpdf
 textblob
 wordcloud
 fpdf2
+kaleido
