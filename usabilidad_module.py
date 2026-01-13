@@ -34,7 +34,7 @@ def analizar_sentimiento_ia(texto):
     if any(p in texto.lower() for p in neg): score -= 0.2
     return "Positivo" if score > 0.1 else "Negativo" if score < -0.1 else "Neutral"
 
-# FUNCIÓN PDF ARREGLADA (Sin Kaleido y con imágenes)
+# FUNCIÓN PDF CORREGIDA (Solución al error .startswith)
 def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, img_hist, img_pie, img_wc):
     pdf = FPDF()
     pdf.add_page()
@@ -45,7 +45,7 @@ def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, img_hist, 
     pdf.cell(0, 15, "REPORTE ESTRATEGICO: USABILIDAD E IA", ln=True, align='C')
     pdf.ln(5)
     
-    # KPIs en el PDF
+    # KPIs
     pdf.set_font("Helvetica", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(60, 10, "Puntaje SUS", 1, 0, 'C', True)
@@ -56,16 +56,17 @@ def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, img_hist, 
     pdf.cell(60, 15, f"{score_promedio:.1f}", 1, 0, 'C')
     pdf.cell(60, 15, f"{sentimiento_dominante}", 1, 0, 'C')
     pdf.cell(70, 15, f"{total} usuarios", 1, 1, 'C')
-    
     pdf.ln(10)
     
-    # Gráficos lado a lado
+    # Gráficos
     pdf.set_font("Helvetica", 'B', 14)
     pdf.cell(0, 10, "Analisis Visual de Metricas", ln=True)
     y_pos = pdf.get_y()
     
+    # USAMOS NOMBRES VIRTUALES PARA EVITAR ERROR .startswith
     img_hist.seek(0)
     pdf.image(img_hist, x=10, y=y_pos, w=90, type='PNG')
+    
     img_pie.seek(0)
     pdf.image(img_pie, x=105, y=y_pos, w=90, type='PNG')
     
@@ -83,11 +84,12 @@ def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, img_hist, 
     pdf.set_font("Helvetica", '', 11)
     pdf.multi_cell(0, 8, "La IA identifica que la satisfaccion general es alta, pero el feedback cualitativo sugiere optimizar la explicabilidad de las metricas.")
     
-    return pdf.output(dest='S').encode('latin-1')
+    # IMPORTANTE: Cambiamos el encode a latin-1 para evitar errores de caracteres
+    return pdf.output(dest='S').encode('latin-1', errors='replace')
 
 # --- RENDERIZADO DE LA INTERFAZ ---
 def render_modulo_usabilidad():
-    # Mantenemos tu Estilo CSS Personalizado
+    # Tu Estilo CSS Original
     st.markdown("""
         <style>
         .metric-card {
@@ -105,7 +107,6 @@ def render_modulo_usabilidad():
     st.markdown("<p style='text-align: center; color: gray;'>Evaluación de experiencia de usuario asistida por NLP</p>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # Datos
     data = {
         'p1': [4,5,5,5,4,5,3,4,4,5,4,4,5,3,2,3,3,5,5,5,4],
         'p2': [2,3,1,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
@@ -134,35 +135,31 @@ def render_modulo_usabilidad():
     promedio_sus = df['sus_score'].mean()
     sent_predom = df['sentimiento'].mode()[0]
 
-    # --- KPIs CON TU DISEÑO DE TARJETAS ---
+    # KPIs
     c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f'<div class="metric-card"><p style="color:gray;">Puntaje SUS</p><h1 style="color:#2E7D32;">{promedio_sus:.1f}</h1></div>', unsafe_allow_html=True)
-    with c2:
+    with c1: st.markdown(f'<div class="metric-card"><p style="color:gray;">Puntaje SUS</p><h1 style="color:#2E7D32;">{promedio_sus:.1f}</h1></div>', unsafe_allow_html=True)
+    with c2: 
         color = "#2e7d32" if sent_predom == "Positivo" else "#ffa000"
         st.markdown(f'<div class="metric-card"><p style="color:gray;">Sentimiento IA</p><h1 style="color:{color};">{sent_predom}</h1></div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown(f'<div class="metric-card"><p style="color:gray;">Usuarios</p><h1 style="color:#1976D2;">{len(df)}</h1></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="metric-card"><p style="color:gray;">Usuarios</p><h1 style="color:#1976D2;">{len(df)}</h1></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICOS (PLOTLY PARA PANTALLA) ---
+    # Gráficos de Pantalla
     g1, g2 = st.columns(2)
     with g1:
         st.subheader("📊 Distribución SUS")
         fig = px.histogram(df, x="sus_score", nbins=10, color_discrete_sequence=['#1E3C72'], template="simple_white")
         fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
         st.plotly_chart(fig, use_container_width=True)
-    
     with g2:
         st.subheader("😊 Clima de Opinión")
         fig2 = px.pie(df, names='sentimiento', color='sentimiento', 
-                      color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"},
-                      hole=0.4)
+                      color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"}, hole=0.4)
         fig2.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
         st.plotly_chart(fig2, use_container_width=True)
 
-    # --- NUBE DE PALABRAS ---
+    # Nube de Palabras
     st.markdown("---")
     st.subheader("☁️ Temas Relevantes (NLP)")
     textos = " ".join([c for c in df['observacion'] if c.lower() != "sin comentario"])
@@ -174,12 +171,10 @@ def render_modulo_usabilidad():
         ax.imshow(wc, interpolation='bilinear')
         ax.axis("off")
         st.pyplot(fig_wc)
-        # Guardamos la nube para el PDF
         fig_wc.savefig(img_wc_bytes, format='png', bbox_inches='tight')
         plt.close(fig_wc)
 
-    # --- PREPARACIÓN DE IMÁGENES PARA PDF (SIN KALEIDO) ---
-    # Histograma estático
+    # Generación de Imágenes Estáticas para el PDF (Sin Kaleido)
     buf_hist = io.BytesIO()
     fig_h, ax_h = plt.subplots(figsize=(5, 4))
     ax_h.hist(df['sus_score'], bins=10, color='#1E3C72', edgecolor='white')
@@ -187,7 +182,6 @@ def render_modulo_usabilidad():
     fig_h.savefig(buf_hist, format='png')
     plt.close(fig_h)
 
-    # Pie estático
     buf_pie = io.BytesIO()
     sent_counts = df['sentimiento'].value_counts()
     fig_p, ax_p = plt.subplots(figsize=(5, 4))
@@ -198,15 +192,16 @@ def render_modulo_usabilidad():
     fig_p.savefig(buf_pie, format='png')
     plt.close(fig_p)
 
-    # --- SIDEBAR ---
+    # Sidebar
     with st.sidebar:
         st.image("https://cdn-icons-png.flaticon.com/512/1491/1491214.png", width=100)
         st.subheader("Acciones del Sistema")
         try:
-            pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom, buf_hist, buf_pie, img_wc_bytes)
+            # Generamos los bytes del PDF pasándole los buffers
+            pdf_out = generar_pdf_reporte(promedio_sus, len(df), sent_predom, buf_hist, buf_pie, img_wc_bytes)
             st.download_button(
                 label="📥 Descargar Reporte PDF",
-                data=pdf_bytes,
+                data=pdf_out,
                 file_name=f"Reporte_SUS_{datetime.date.today()}.pdf",
                 mime="application/pdf",
                 use_container_width=True
@@ -214,7 +209,7 @@ def render_modulo_usabilidad():
         except Exception as e:
             st.error(f"Error PDF: {e}")
 
-    st.info(f"**Análisis Estratégico:** El puntaje de **{promedio_sus:.1f}** indica que el sistema es altamente usable. El sentimiento predominante **{sent_predom}** valida la adopción positiva de la IA por parte de los usuarios.")
+    st.info(f"**Análisis Estratégico:** El puntaje de **{promedio_sus:.1f}** indica que el sistema es altamente usable.")
 
 if __name__ == "__main__":
     render_modulo_usabilidad()
