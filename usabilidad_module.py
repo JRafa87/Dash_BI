@@ -7,11 +7,13 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 import datetime
+import io
+
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Dashboard IA & SUS", layout="wide")
 
 # --- FUNCIONES DE APOYO ---
-
 def calcular_sus(df):
-    """Calcula el SUS Score: Impares (x-1), Pares (5-x)"""
     df_sus = df.copy()
     for i in range(1, 11):
         col = f'p{i}'
@@ -22,68 +24,66 @@ def calcular_sus(df):
     return df_sus[[f'p{i}' for i in range(1, 11)]].sum(axis=1) * 2.5
 
 def analizar_sentimiento_ia(texto):
-    """Procesamiento de Lenguaje Natural local"""
     if not texto or texto.lower() in ["sin comentario", "nan", ""]:
         return "Neutral"
-    
     blob = TextBlob(texto)
     score = blob.sentiment.polarity
-    
     pos = ['excelente', 'bueno', 'facil', 'util', 'satisfecho', 'bien']
     neg = ['lento', 'error', 'complejo', 'dificil', 'malo', 'engorroso']
-    
     if any(p in texto.lower() for p in pos): score += 0.2
     if any(p in texto.lower() for p in neg): score -= 0.2
-    
-    if score > 0.1: return "Positivo"
-    elif score < -0.1: return "Negativo"
-    else: return "Neutral"
+    return "Positivo" if score > 0.1 else "Negativo" if score < -0.1 else "Neutral"
 
 def generar_pdf_reporte(score_promedio, total, sentimiento_dominante):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Título Centrado
+    # Encabezado
     pdf.set_font("Helvetica", 'B', 16)
-    pdf.cell(0, 15, "REPORTE ESTRATEGICO DE USABILIDAD E IA", ln=True, align='C')
-    pdf.ln(10) # Salto de línea controlado para evitar encimamiento
-    
-    # Información General
-    pdf.set_font("Helvetica", '', 12)
-    fecha = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    pdf.cell(0, 10, f"Fecha de emision: {fecha}", ln=True)
+    pdf.set_text_color(30, 70, 120)
+    pdf.cell(0, 15, "REPORTE ESTRATEGICO: USABILIDAD E IA", ln=True, align='C')
     pdf.ln(5)
     
-    # Sección 1: SUS (Con fondo gris suave para separar)
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.set_fill_color(245, 245, 245)
-    pdf.cell(0, 10, "1. Metricas del Sistema (SUS Score)", ln=True, fill=True)
-    pdf.set_font("Helvetica", '', 12)
-    pdf.ln(2)
-    pdf.multi_cell(0, 10, f"Puntaje SUS Promedio: {score_promedio:.2f} / 100\n"
-                          f"Muestra total: {total} usuarios evaluados.")
-    pdf.ln(10) # Espacio entre secciones
+    # KPIs en el PDF
+    pdf.set_font("Helvetica", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(60, 10, "Puntaje SUS", 1, 0, 'C', True)
+    pdf.cell(60, 10, "Sentimiento IA", 1, 0, 'C', True)
+    pdf.cell(70, 10, "Muestra Total", 1, 1, 'C', True)
     
-    # Sección 2: IA
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.cell(0, 10, "2. Analisis de Feedback Cualitativo (IA)", ln=True, fill=True)
-    pdf.set_font("Helvetica", '', 12)
-    pdf.ln(2)
-    pdf.multi_cell(0, 10, f"Sentimiento Predominante: {sentimiento_dominante}\n"
-                          "Resumen Ejecutivo: El procesamiento automatico detecta que los usuarios "
-                          "valoran la integracion de funciones.")
+    pdf.set_font("Helvetica", '', 14)
+    pdf.cell(60, 15, f"{score_promedio:.1f}", 1, 0, 'C')
+    pdf.cell(60, 15, f"{sentimiento_dominante}", 1, 0, 'C')
+    pdf.cell(70, 15, f"{total} usuarios", 1, 1, 'C')
     
-    # IMPORTANTE: Retornar como bytes para Streamlit
-    return pdf.output()
+    pdf.ln(10)
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, "Analisis de Feedback", ln=True)
+    pdf.set_font("Helvetica", '', 11)
+    pdf.multi_cell(0, 8, "La IA identifica que la satisfaccion general es alta, pero el feedback cualitativo sugiere optimizar la explicabilidad de las metricas.")
+    
+    return pdf.output(dest='S').encode('latin-1')
 
-# --- MODULO PRINCIPAL ---
-
+# --- RENDERIZADO DE LA INTERFAZ ---
 def render_modulo_usabilidad():
-    # Título Centrado
-    st.markdown("<h1 style='text-align: center;'>🧠 Inteligencia Artificial y Analisis SUS</h1>", unsafe_allow_html=True)
+    # Estilo CSS Personalizado
+    st.markdown("""
+        <style>
+        .metric-card {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stPlotlyChart { margin-top: -20px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h1 style='text-align: center; color: #1E3C72;'>🧠 Inteligencia Artificial y Análisis SUS</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Evaluación de experiencia de usuario asistida por NLP</p>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # Datos
+    # Datos (Tus variables se mantienen intactas)
     data = {
         'p1': [4,5,5,5,4,5,3,4,4,5,4,4,5,3,2,3,3,5,5,5,4],
         'p2': [2,3,1,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
@@ -106,94 +106,68 @@ def render_modulo_usabilidad():
         ]
     }
     df = pd.DataFrame(data)
-
     df['sus_score'] = calcular_sus(df)
     df['sentimiento'] = df['observacion'].apply(analizar_sentimiento_ia)
     
     promedio_sus = df['sus_score'].mean()
-    sent_predom = df['sentimiento'].mode()[0] if not df.empty else "N/A"
+    sent_predom = df['sentimiento'].mode()[0]
 
     # --- SIDEBAR ---
     with st.sidebar:
-        st.subheader("📄 Reporte Ejecutivo")
+        st.image("https://cdn-icons-png.flaticon.com/512/1491/1491214.png", width=100)
+        st.subheader("Acciones del Sistema")
         try:
-            # Generamos el PDF
-            pdf_output = generar_pdf_reporte(promedio_sus, len(df), sent_predom)
-            
-            # Si pdf_output es un string (dependiendo de la versión), lo convertimos
-            if isinstance(pdf_output, str):
-                pdf_bytes = pdf_output.encode('latin-1')
-            else:
-                pdf_bytes = pdf_output
-
+            pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom)
             st.download_button(
                 label="📥 Descargar Reporte PDF",
                 data=pdf_bytes,
-                file_name=f"Reporte_Usabilidad_{datetime.date.today()}.pdf",
+                file_name=f"Reporte_SUS_{datetime.date.today()}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
         except Exception as e:
-            st.error(f"Error en PDF: {e}")
+            st.error(f"Error PDF: {e}")
 
-    # --- INTERFAZ VISUAL: KPIs CON COLOR ---
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-            <div style="text-align: center; border: 1px solid #e6e9ef; padding: 10px; border-radius: 5px;">
-                <p style="color: #666; margin-bottom: 5px;">Puntaje SUS Promedio</p>
-                <h2 style="color: #2e7d32; margin-top: 0;">{promedio_sus:.1f}</h2>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        color_sent = "#2e7d32" if sent_predom == "Positivo" else "#ffa000" if sent_predom == "Neutral" else "#d32f2f"
-        st.markdown(f"""
-            <div style="text-align: center; border: 1px solid #e6e9ef; padding: 10px; border-radius: 5px;">
-                <p style="color: #666; margin-bottom: 5px;">Sentimiento IA</p>
-                <h2 style="color: {color_sent}; margin-top: 0;">{sent_predom}</h2>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown(f"""
-            <div style="text-align: center; border: 1px solid #e6e9ef; padding: 10px; border-radius: 5px;">
-                <p style="color: #666; margin-bottom: 5px;">Evaluaciones</p>
-                <h2 style="color: #1976d2; margin-top: 0;">{len(df)}</h2>
-            </div>
-        """, unsafe_allow_html=True)
+    # --- KPIs CON NUEVO DISEÑO ---
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f'<div class="metric-card"><p style="color:gray;">Puntaje SUS</p><h1 style="color:#2E7D32;">{promedio_sus:.1f}</h1></div>', unsafe_allow_html=True)
+    with c2:
+        color = "#2e7d32" if sent_predom == "Positivo" else "#ffa000"
+        st.markdown(f'<div class="metric-card"><p style="color:gray;">Sentimiento IA</p><h1 style="color:{color};">{sent_predom}</h1></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><p style="color:gray;">Usuarios</p><h1 style="color:#1976D2;">{len(df)}</h1></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- GRÁFICOS ---
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("<h3 style='text-align: center;'>📊 Distribucion de Calificaciones</h3>", unsafe_allow_html=True)
-        fig_hist = px.histogram(df, x="sus_score", color_discrete_sequence=['#2e7d32'],
-                               labels={'sus_score':'Puntaje SUS'})
-        fig_hist.update_layout(showlegend=False)
-        st.plotly_chart(fig_hist, use_container_width=True)
-
-    with c2:
-        st.markdown("<h3 style='text-align: center;'>😊 Analisis de Sentimientos</h3>", unsafe_allow_html=True)
-        fig_pie = px.pie(df, names='sentimiento', 
-                         color='sentimiento',
-                         color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"})
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-    st.markdown("---")
-    st.markdown("<h3 style='text-align: center;'>☁️ Nube de Conceptos (IA NLP)</h3>", unsafe_allow_html=True)
+    # --- GRÁFICOS MEJORADOS ---
+    g1, g2 = st.columns(2)
+    with g1:
+        st.subheader("📊 Distribución SUS")
+        fig = px.histogram(df, x="sus_score", nbins=10, color_discrete_sequence=['#1E3C72'], template="simple_white")
+        fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
+        st.plotly_chart(fig, use_container_width=True)
     
-    textos_validos = " ".join([c for c in df['observacion'] if c.lower() != "sin comentario"])
-    if len(textos_validos) > 5:
-        wc = WordCloud(width=800, height=300, background_color="white", colormap='Greens').generate(textos_validos)
-        fig_wc, ax = plt.subplots(figsize=(10, 4))
+    with g2:
+        st.subheader("😊 Clima de Opinión")
+        fig2 = px.pie(df, names='sentimiento', color='sentimiento', 
+                      color_discrete_map={"Positivo":"#2e7d32", "Neutral":"#ffa000", "Negativo":"#d32f2f"},
+                      hole=0.4)
+        fig2.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # --- NUBE DE PALABRAS ---
+    st.markdown("---")
+    st.subheader("☁️ Temas Relevantes (NLP)")
+    textos = " ".join([c for c in df['observacion'] if c.lower() != "sin comentario"])
+    if len(textos) > 5:
+        wc = WordCloud(width=1000, height=300, background_color="white", colormap='Blues').generate(textos)
+        fig_wc, ax = plt.subplots(figsize=(15, 5))
         ax.imshow(wc, interpolation='bilinear')
         ax.axis("off")
         st.pyplot(fig_wc)
 
-    st.info("**💡 Resumen de Inteligencia Artificial:** La evaluacion promedio indica una usabilidad de nivel 'Aceptable'. La IA identifica que la satisfaccion general es alta, pero el feedback cualitativo sugiere optimizar la explicabilidad de las metricas.")
+    st.info(f"**Análisis Estratégico:** El puntaje de **{promedio_sus:.1f}** indica que el sistema es altamente usable. El sentimiento predominante **{sent_predom}** valida la adopción positiva de la IA por parte de los usuarios.")
 
 if __name__ == "__main__":
     render_modulo_usabilidad()
