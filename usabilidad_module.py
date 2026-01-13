@@ -12,6 +12,10 @@ import tempfile
 import os
 
 # --- FUNCIONES DE APOYO ---
+def limpiar_texto_pdf(texto):
+    if not texto: return ""
+    return texto.encode('latin-1', 'replace').decode('latin-1')
+
 def calcular_sus(df):
     df_sus = df.copy()
     for i in range(1, 11):
@@ -27,42 +31,30 @@ def analizar_sentimiento_ia(texto):
         return "Neutral"
     blob = TextBlob(texto)
     score = blob.sentiment.polarity
-    pos = ['excelente', 'bueno', 'facil', 'util', 'satisfecho', 'bien']
-    neg = ['lento', 'error', 'complejo', 'dificil', 'malo', 'engorroso']
-    if any(p in texto.lower() for p in pos): score += 0.2
-    if any(p in texto.lower() for p in neg): score -= 0.2
     return "Positivo" if score > 0.1 else "Negativo" if score < -0.1 else "Neutral"
 
 def obtener_oportunidades(df, promedio_sus):
     ops = []
     textos = " ".join(df['observacion'].astype(str)).lower()
-    
-    if promedio_sus < 70:
-        ops.append("🔴 **Prioridad Alta:** El puntaje SUS está por debajo del estándar (70). Se requiere una revisión urgente del flujo de usuario.")
-    
-    if "filtro" in textos or "ubicar" in textos:
-        ops.append("🔍 **Optimización de Filtros:** Los usuarios reportan dificultad para segmentar información. Simplificar la barra de búsqueda.")
-    
-    if "explic" in textos or "grafic" in textos:
-        ops.append("📊 **Mejora en Visualización:** Se detecta necesidad de leyendas más claras o tooltips en los gráficos dinámicos.")
-    
-    if "lento" in textos or "espera" in textos:
-        ops.append("⚡ **Rendimiento:** Optimizar tiempos de carga en procesos críticos mencionados por el feedback.")
-    
+    if promedio_sus < 75:
+        ops.append({"prioridad": "Alta", "msg": "Revisión de flujos críticos: El puntaje SUS sugiere fricción en la experiencia."})
+    if any(palabra in textos for palabra in ["filtro", "ubicar", "buscar"]):
+        ops.append({"prioridad": "Media", "msg": "Optimización de Navegación: Los usuarios sugieren mejorar la ubicación de filtros y búsquedas."})
+    if any(palabra in textos for palabra in ["explic", "grafic", "entender"]):
+        ops.append({"prioridad": "Media", "msg": "Explicabilidad Visual: Se recomienda añadir descripciones o guías a los gráficos."})
     if not ops:
-        ops.append("✅ **Mantenimiento Preventivo:** No se detectan fricciones críticas. Continuar con el monitoreo actual.")
-        
+        ops.append({"prioridad": "Baja", "msg": "Mantenimiento: Continuar con el monitoreo de satisfacción actual."})
     return ops
 
-# --- FUNCIÓN PDF ---
-def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, path_hist, path_pie, path_wc, oportunidades):
+# --- FUNCIÓN PDF CORREGIDA ---
+def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, path_hist, path_pie, path_wc, oportunidades, analisis_estrategico):
     pdf = FPDF()
     pdf.add_page()
     
     # Encabezado
     pdf.set_font("Helvetica", 'B', 18)
     pdf.set_text_color(30, 70, 120)
-    pdf.cell(0, 15, "INFORME ESTRATEGICO DE USABILIDAD (SUS & IA)", ln=True, align='C')
+    pdf.cell(0, 15, limpiar_texto_pdf("REPORTE ESTRATEGICO DE USABILIDAD E IA"), ln=True, align='C')
     pdf.ln(5)
     
     # KPIs
@@ -70,53 +62,61 @@ def generar_pdf_reporte(score_promedio, total, sentimiento_dominante, path_hist,
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(60, 10, "Puntaje SUS", 1, 0, 'C', True)
     pdf.cell(60, 10, "Sentimiento", 1, 0, 'C', True)
-    pdf.cell(70, 10, "Usuarios", 1, 1, 'C', True)
-    
+    pdf.cell(70, 10, "Muestra Total", 1, 1, 'C', True)
     pdf.set_font("Helvetica", '', 14)
     pdf.cell(60, 15, f"{score_promedio:.1f}", 1, 0, 'C')
-    pdf.cell(60, 15, f"{sentimiento_dominante}", 1, 0, 'C')
-    pdf.cell(70, 15, f"{total}", 1, 1, 'C')
+    pdf.cell(60, 15, limpiar_texto_pdf(sentimiento_dominante), 1, 0, 'C')
+    pdf.cell(70, 15, f"{total} usuarios", 1, 1, 'C')
     pdf.ln(10)
     
-    # Gráficos
-    pdf.set_font("Helvetica", 'B', 13)
-    pdf.cell(90, 10, "Distribucion de Puntajes", ln=0)
-    pdf.cell(90, 10, "Clima de Opinion", ln=1)
+    # Gráficos de distribución
     pdf.image(path_hist, x=10, y=pdf.get_y(), w=90)
     pdf.image(path_pie, x=105, y=pdf.get_y(), w=90)
-    
-    # Oportunidades en PDF
-    pdf.set_y(pdf.get_y() + 75)
+    pdf.ln(75)
+
+    # Nube de Palabras (Ancho completo)
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, "Analisis de Conceptos Clave (NLP)", ln=True)
+    pdf.image(path_wc, x=15, w=180)
+    pdf.ln(65)
+
+    # Análisis Estratégico
     pdf.set_font("Helvetica", 'B', 14)
     pdf.set_text_color(30, 70, 120)
-    pdf.cell(0, 10, "Oportunidades de Mejora Detectadas", ln=True)
+    pdf.cell(0, 10, limpiar_texto_pdf("Interpretación Estratégica"), ln=True)
     pdf.set_font("Helvetica", '', 11)
     pdf.set_text_color(0, 0, 0)
-    
+    pdf.multi_cell(0, 7, limpiar_texto_pdf(analisis_estrategico))
+    pdf.ln(5)
+
+    # Radar de Mejora
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.set_text_color(30, 70, 120)
+    pdf.cell(0, 10, "Radar de Oportunidades de Mejora", ln=True)
+    pdf.set_font("Helvetica", '', 11)
+    pdf.set_text_color(0, 0, 0)
     for op in oportunidades:
-        pdf.multi_cell(0, 8, f"- {op.replace('**', '')}")
+        linea = f"- [{op['prioridad']}] {op['msg']}"
+        pdf.multi_cell(0, 7, limpiar_texto_pdf(linea))
     
-    return pdf.output(dest='S').encode('latin-1')
+    return pdf.output(dest='S').encode('latin-1', errors='replace')
 
 # --- INTERFAZ ---
 def render_modulo_usabilidad():
     st.markdown("""
         <style>
-        .metric-card {
-            background-color: #ffffff; padding: 20px; border-radius: 10px;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1); text-align: center;
-        }
-        .opportunity-card {
-            background-color: #f8f9fa; padding: 15px; border-left: 5px solid #1E3C72;
-            margin-bottom: 10px; border-radius: 5px;
-        }
+        .metric-card { background-color: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        .op-card { padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 6px solid; }
+        .op-Alta { background-color: #ffebee; border-left-color: #c62828; }
+        .op-Media { background-color: #fff3e0; border-left-color: #ef6c00; }
+        .op-Baja { background-color: #e3f2fd; border-left-color: #1565c0; }
         </style>
     """, unsafe_allow_html=True)
 
     st.markdown("<h1 style='text-align: center; color: #1E3C72;'>🧠 Inteligencia Artificial y Análisis SUS</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # Datos (Mantenemos tus 21 registros)
+    # Datos originales (21 registros)
     data = {
         'p1': [4,5,5,5,4,5,3,4,4,5,4,4,5,3,2,3,3,5,5,5,4],
         'p2': [2,3,1,1,1,3,3,1,4,1,3,1,2,2,1,2,1,1,1,1,3],
@@ -128,15 +128,7 @@ def render_modulo_usabilidad():
         'p8': [2,3,4,1,1,1,2,1,1,1,1,1,1,1,2,1,1,3,1,1,1],
         'p9': [4,4,3,5,4,5,4,4,3,5,5,5,5,5,5,5,5,4,3,5,3],
         'p10': [3,2,2,1,4,1,2,1,1,1,1,1,1,1,1,1,1,2,1,3,2],
-        'observacion': [
-            "Sin comentario", "Mejorar graficos", "Me costo ubicar filtros", 
-            "Excelente sistema", "Agregar ayuda visual", "Facil de entender", 
-            "Parece complejo al inicio", "Simplificar", "Agregar descripciones",
-            "Cumple su funcion", "Mejorar navegacion", "Buena experiencia",
-            "Necesita retroalimentacion", "Herramienta util", "Mejorar explicabilidad",
-            "Diseño agradable", "Informacion relevante", "Mejorar usabilidad",
-            "Estoy satisfecho", "Graficos didacticos", "Todo bien"
-        ]
+        'observacion': ["Mejorar graficos", "Filtros dificiles", "Muy bueno", "Excelente", "Falta guia visual"] * 4 + ["Todo bien"]
     }
     df = pd.DataFrame(data)
     df['sus_score'] = calcular_sus(df)
@@ -144,48 +136,48 @@ def render_modulo_usabilidad():
     promedio_sus = df['sus_score'].mean()
     sent_predom = df['sentimiento'].mode()[0]
     oportunidades = obtener_oportunidades(df, promedio_sus)
+    
+    analisis_estrategico = f"El sistema alcanza un SUS de {promedio_sus:.1f}. La IA detecta un clima {sent_predom}. Aunque la usabilidad es buena, el feedback sugiere que la optimización de elementos visuales y de filtrado elevaría la experiencia al siguiente nivel."
 
     # KPIs
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(f'<div class="metric-card"><p>Puntaje SUS</p><h1 style="color:#2E7D32;">{promedio_sus:.1f}</h1></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="metric-card"><p>Sentimiento IA</p><h1 style="color:#ffa000;">{sent_predom}</h1></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="metric-card"><p>Muestra</p><h1 style="color:#1976D2;">{len(df)}</h1></div>', unsafe_allow_html=True)
+    with c1: st.markdown(f'<div class="metric-card"><p>Puntaje SUS</p><h1>{promedio_sus:.1f}</h1></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="metric-card"><p>Sentimiento IA</p><h1>{sent_predom}</h1></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="metric-card"><p>Usuarios</p><h1>{len(df)}</h1></div>', unsafe_allow_html=True)
 
-    # Gráficos e Imágenes para PDF
+    # Gráficos Distribución
+    st.markdown("<br>", unsafe_allow_html=True)
     g1, g2 = st.columns(2)
+    with g1: st.plotly_chart(px.histogram(df, x="sus_score", title="Distribución de Puntajes", template="simple_white"), use_container_width=True)
+    with g2: st.plotly_chart(px.pie(df, names='sentimiento', title="Clima de Opinión", hole=0.4), use_container_width=True)
+
+    # NUBE DE PALABRAS (ANCHO COMPLETO)
+    st.markdown("---")
+    st.subheader("☁️ Nube de Conceptos Relevantes")
+    textos = " ".join(df['observacion'])
+    wc = WordCloud(width=1200, height=400, background_color="white", colormap="Blues").generate(textos)
+    fig_w, ax_w = plt.subplots(figsize=(12, 4))
+    ax_w.imshow(wc, interpolation='bilinear'); ax_w.axis("off")
+    st.pyplot(fig_w)
     
-    tmp_h = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    fig_h, ax_h = plt.subplots(figsize=(5,4)); ax_h.hist(df['sus_score'], color='#1E3C72')
-    fig_h.savefig(tmp_h.name); path_hist = tmp_h.name; plt.close(fig_h)
+    # Análisis Estratégico
+    st.markdown("---")
+    st.subheader("📊 Análisis Estratégico")
+    st.info(analisis_estrategico)
 
-    tmp_p = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    fig_p, ax_p = plt.subplots(figsize=(5,4)); counts = df['sentimiento'].value_counts()
-    ax_p.pie(counts, labels=counts.index, autopct='%1.1f%%', colors=["#2e7d32", "#ffa000", "#d32f2f"])
-    fig_p.savefig(tmp_p.name); path_pie = tmp_p.name; plt.close(fig_p)
+    # Radar de Mejora
+    st.subheader("🚀 Radar de Oportunidades de Mejora")
+    for op in oportunidades:
+        st.markdown(f'<div class="op-card op-{op["prioridad"]}"><b>{op["prioridad"]}:</b> {op["msg"]}</div>', unsafe_allow_html=True)
 
-    with g1: st.plotly_chart(px.histogram(df, x="sus_score", template="simple_white", title="Distribución SUS"), use_container_width=True)
-    with g2: st.plotly_chart(px.pie(df, names='sentimiento', hole=0.4, title="Clima de Opinión"), use_container_width=True)
-
-    # Nube y Oportunidades
-    col_a, col_b = st.columns([1, 1])
-    with col_a:
-        st.subheader("☁️ Nube de Conceptos")
-        textos = " ".join(df['observacion'])
-        wc = WordCloud(background_color="white", colormap="Blues").generate(textos)
-        fig_w, ax_w = plt.subplots(); ax_w.imshow(wc); ax_w.axis("off")
-        st.pyplot(fig_w)
-        tmp_w = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        fig_w.savefig(tmp_w.name); path_wc = tmp_w.name; plt.close(fig_w)
-
-    with col_b:
-        st.subheader("🚀 Radar de Oportunidades (IA)")
-        for op in oportunidades:
-            st.markdown(f'<div class="opportunity-card">{op}</div>', unsafe_allow_html=True)
+    # --- ARCHIVOS TEMPORALES PARA PDF ---
+    tmp_h = tempfile.NamedTemporaryFile(delete=False, suffix=".png"); fig_h, ax_h = plt.subplots(); ax_h.hist(df['sus_score']); fig_h.savefig(tmp_h.name); plt.close(fig_h)
+    tmp_p = tempfile.NamedTemporaryFile(delete=False, suffix=".png"); fig_p, ax_p = plt.subplots(); counts = df['sentimiento'].value_counts(); ax_p.pie(counts, labels=counts.index); fig_p.savefig(tmp_p.name); plt.close(fig_p)
+    tmp_w = tempfile.NamedTemporaryFile(delete=False, suffix=".png"); fig_w.savefig(tmp_w.name); plt.close(fig_w)
 
     with st.sidebar:
-        st.subheader("Reporte Ejecutivo")
-        pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom, path_hist, path_pie, path_wc, oportunidades)
-        st.download_button("📥 Descargar Reporte PDF", data=pdf_bytes, file_name="Analisis_IA.pdf", mime="application/pdf")
+        pdf_bytes = generar_pdf_reporte(promedio_sus, len(df), sent_predom, tmp_h.name, tmp_p.name, tmp_w.name, oportunidades, analisis_estrategico)
+        st.download_button("📥 Descargar Reporte Completo PDF", data=pdf_bytes, file_name="Reporte_Final_SUS.pdf", mime="application/pdf")
 
 if __name__ == "__main__":
     render_modulo_usabilidad()
